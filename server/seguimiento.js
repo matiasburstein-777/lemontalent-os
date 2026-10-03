@@ -128,8 +128,8 @@ export function registerSeguimiento(app, { pool, auth }) {
 }
 
 function pagina(titulo, body) {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(titulo)} · Lemon Talent</title><link rel="icon" href="/logo.svg" type="image/svg+xml"><style>
-  *{box-sizing:border-box}body{font:15px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#1b201b;background:#F4F5F1;margin:0}
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(titulo)} · Lemon Talent</title><link rel="icon" href="/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap"><style>
+  *{box-sizing:border-box}body{font:15px/1.55 "DM Sans",-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#111;background:#F9F9F9;margin:0}
   main{max-width:820px;margin:0 auto;padding:28px 16px 40px}.card{background:#fff;border:1px solid #DDE1D8;border-radius:12px;padding:22px 22px 26px}
   .brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:9px}.brand img{width:32px;height:32px}
   h1{font-size:24px;margin:10px 0 2px}h2{font-size:16px;margin:26px 0 10px;padding-bottom:5px;border-bottom:2px solid #D9E151}
