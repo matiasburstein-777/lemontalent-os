@@ -37,7 +37,7 @@ CREATE INDEX IF NOT EXISTS archivos_reg_idx ON archivos (coleccion, registro_id)
 // Colecciones visibles por rol (para filtrar el historial)
 const VISIBLE = {
   recruiter: ["busquedas", "candidatos", "postulaciones", "feedback"],
-  admin: ["busquedas", "candidatos", "postulaciones", "feedback", "busquedasFin", "facturas", "clientes", "leads"],
+  admin: ["busquedas", "candidatos", "postulaciones", "feedback", "busquedasFin", "facturas", "clientes", "leads", "gastos", "gastosRecurrentes"],
 };
 const ADJUNTOS = { candidatos: "recruiter", busquedas: "recruiter", clientes: "admin", leads: "admin" };
 const MAX_ARCHIVO = 8 * 1024 * 1024;

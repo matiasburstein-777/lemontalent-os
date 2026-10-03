@@ -83,6 +83,33 @@ export const postulaciones = pgTable("postulaciones", {
   etapas: jsonb("etapas").default([]), // [{etapa, fecha, autor, motivo}] lo arma el servidor en cada cambio de etapa
 });
 
+// Gastos del negocio (server/gastos.js). Las filas de un recurrente tienen id "gr-<recurrente>-<mes>" y se crean solas cada mes.
+export const gastos = pgTable("gastos", {
+  id: text("id").primaryKey(),
+  mes: text("mes").notNull(), // 'YYYY-MM'
+  concepto: text("concepto").notNull(),
+  categoria: text("categoria"),
+  moneda: text("moneda").default("ARS"),
+  monto: doublePrecision("monto"),
+  recurrenteId: text("recurrente_id"),
+  omitido: boolean("omitido").default(false), // recurrente que no corresponde este mes
+  pagado: boolean("pagado").default(false),
+  fechaPago: d("fecha_pago"),
+  notas: text("notas"),
+  creado: d("creado"),
+});
+export const gastosRecurrentes = pgTable("gastos_recurrentes", {
+  id: text("id").primaryKey(),
+  concepto: text("concepto").notNull(),
+  categoria: text("categoria"),
+  moneda: text("moneda").default("ARS"),
+  monto: doublePrecision("monto"),
+  desde: text("desde").notNull(), // 'YYYY-MM'
+  hasta: text("hasta"),
+  notas: text("notas"),
+  activo: boolean("activo").default(true),
+});
+
 // Link privado de solo lectura para que el cliente vea el avance de su búsqueda (server/seguimiento.js)
 export const linksCliente = pgTable("links_cliente", {
   token: text("token").primaryKey(),

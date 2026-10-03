@@ -7,13 +7,14 @@ const ORIGENES_LEAD = ["Conocido","Referido de cliente","Referido","Cliente ante
 const CANALES_LEAD = ["LinkedIn","WhatsApp","Mail","Llamada","Reunión","Evento"];
 const MOTIVOS_PERDIDA = ["No interesado","Sin búsquedas por ahora","Precio","Eligió a otro","Sin respuesta","Propuesta no avanzó"];
 const MOTIVOS_DESC = ["No califica","Pretensión salarial","Declinó el candidato","Rechazado por el cliente","No respondió","Aceptó otra oferta","Otro"];
+const CATEGORIAS_GASTO = ["Sueldos y honorarios","Software y herramientas","Oficina","Impuestos","Contador y legales","Marketing","Bancos y comisiones","Otros"];
 const TIPOS_FC = ["Inicio y avance","Cierre","50% anticipo","Cancelación"];
 const EMISORES = ["MATI","PAU","Invoice"];
 const PRIORIDADES = ["","1 (Alta)","2 (Media)","3 (Estable)"];
 const DEF_OBJ = {facturacionMensualARS:11000000,ticketPromedioARS:2800000,feeMinimoARS:1850000,timeToFillDias:35,busquedasActivas:8,propuestasMes:2,nuevosClientesMes:2};
 
 // ---------- state ----------
-const S = {busquedas:{},candidatos:{},postulaciones:{},equipo:null,facturas:{},fin:{},meses:{},clientes:{},leads:{},objetivos:null,feedback:{},users:[],propuestas:{},digest:null,cliDocs:null};
+const S = {busquedas:{},candidatos:{},postulaciones:{},equipo:null,facturas:{},fin:{},meses:{},clientes:{},leads:{},objetivos:null,feedback:{},users:[],propuestas:{},digest:null,cliDocs:null,gastos:{},gastosRec:{}};
 const loaded = {};
 let me = {id:null}, isAdmin = false, canFin = false, isAdm = false; // isAdmin = socio; canFin = socio o administradora
 let view = "panel";
@@ -47,6 +48,9 @@ const vals = o => Object.values(o||{});
 const keyN = s => String(s||"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
 
 function toast(msg,err){ const h=$("#toastHost"); h.innerHTML=`<div class="toast${err?" err":""}">${esc(msg)}</div>`; clearTimeout(toast.t); toast.t=setTimeout(()=>h.innerHTML="",2600); }
+// Aviso con botón para deshacer la última acción (queda 6 segundos)
+let undoFn=null;
+function toastUndo(msg,fn){ undoFn=fn; const h=$("#toastHost"); h.innerHTML=`<div class="toast">${esc(msg)} <button class="toast-undo" data-act="undo">Deshacer</button></div>`; clearTimeout(toast.t); toast.t=setTimeout(()=>{h.innerHTML="";undoFn=null;},6000); }
 
 // ---------- money helpers ----------
 const hist = () => Object.fromEntries(vals(S.meses).filter(m=>m.historico).map(m=>[m.id,m]));
@@ -81,17 +85,22 @@ function pnl(k){
     const fs=vals(S.facturas).filter(f=>!f.historico && ym(f.fechaEmision)===k);
     ingARS=fs.filter(f=>f.moneda!=="USD").reduce((s,f)=>s+(f.monto||0),0);
     ingUSD=fs.filter(f=>f.moneda==="USD").reduce((s,f)=>s+(f.monto||0),0);
-    const m=mesDoc(k); gastos=((m&&m.gastos)||[]).map(g=>({...g}));
+    const m=mesDoc(k); gastos=[...((m&&m.gastos)||[]).map(g=>({...g})), ...gastosDelMes(k).map(g=>({concepto:g.concepto,moneda:g.moneda,monto:g.monto||0,categoria:g.categoria||"Otros",id:g.id}))];
     const comARS=fs.filter(f=>f.monedaComision!=="USD").reduce((s,f)=>s+(f.comision||0),0);
     const comUSD=fs.filter(f=>f.monedaComision==="USD").reduce((s,f)=>s+(f.comision||0),0);
-    if(comARS) gastos.push({concepto:"Comisiones recruiters (auto)",moneda:"ARS",monto:comARS,auto:true});
-    if(comUSD) gastos.push({concepto:"Comisiones recruiters USD (auto)",moneda:"USD",monto:comUSD,auto:true});
+    if(comARS) gastos.push({concepto:"Comisiones recruiters (auto)",moneda:"ARS",monto:comARS,auto:true,categoria:"Comisiones recruiters"});
+    if(comUSD) gastos.push({concepto:"Comisiones recruiters USD (auto)",moneda:"USD",monto:comUSD,auto:true,categoria:"Comisiones recruiters"});
     source="sistema";
   }
   const ingTot=ingARS/tc+ingUSD;
   const gasTot=gastos.reduce((s,g)=>s+(g.moneda==="USD"?g.monto:g.monto/tc),0);
   return {k,tc,ingARS,ingUSD,ingTot,gastos,gasTot,res:ingTot-gasTot,margen:ingTot?(ingTot-gasTot)/ingTot:null,source};
 }
+// Gastos cargados en la tabla de gastos (solo meses que no vienen de la planilla Economics)
+const gastosDelMes = k => vals(S.gastos).filter(g=>g.mes===k&&!g.omitido);
+const sigMes = k => { const [y,m]=k.split("-").map(Number); return m===12?`${y+1}-01`:`${y}-${String(m+1).padStart(2,"0")}`; };
+const antMes = k => { const [y,m]=k.split("-").map(Number); return m===1?`${y-1}-12`:`${y}-${String(m-1).padStart(2,"0")}`; };
+const primerMesSistema = () => { const hs=Object.keys(hist()).sort(); return hs.length?sigMes(hs[hs.length-1]):"2000-01"; };
 function monthsOfYear(y){ const out=[]; const cur=curYM(); for(let m=1;m<=12;m++){ const k=`${y}-${String(m).padStart(2,"0")}`; if(k<=cur) out.push(k);} return out; }
 function lastMonths(n){ const out=[]; const d=new Date(); d.setDate(1); for(let i=n-1;i>=0;i--){ const x=new Date(d.getFullYear(),d.getMonth()-i,1); out.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);} return out; }
 
@@ -209,7 +218,7 @@ function barChart(rows,{h=220,onlyA=false}={}){
   const bw=(W-padL-padR)/rows.length;
   let g=""; for(let t=0;t<=top+1e-9;t+=nice){ g+=`<line x1="${padL}" x2="${W-padR}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${padL-6}" y="${y(t)+4}" text-anchor="end">${short(t)}</text>`; }
   const bars=rows.map((r,i)=>{ const x=padL+i*bw; const w=Math.max(4,bw*0.32);
-    return `<g><title>${esc(r.label)} · ingresos ${usd(r.a)} · gastos ${usd(r.b)}</title>
+    return `<g${r.k?` class="click" data-act="openMes" data-id="${r.k}"`:""}><rect x="${x}" y="${padT}" width="${bw}" height="${H-padT-padB}" fill="transparent"/><title>${esc(r.label)} · ingresos ${usd(r.a)} · gastos ${usd(r.b)}</title>
       <rect x="${x+bw*0.16}" y="${y(r.a)}" width="${w}" height="${Math.max(0,H-padB-y(r.a))}" rx="2" fill="var(--lemon)"/>
       <rect x="${x+bw*0.16+w+2}" y="${y(r.b)}" width="${w}" height="${Math.max(0,H-padB-y(r.b))}" rx="2" fill="var(--muted)" opacity=".55"/>
       <text x="${x+bw/2}" y="${H-8}" text-anchor="middle">${esc(r.label)}</text></g>`; }).join("");
@@ -468,27 +477,120 @@ function vCobros(){
   const pend=F.filter(f=>!f.cobrada);
   const pARS=pend.filter(f=>f.moneda!=="USD").reduce((s,f)=>s+f.monto,0), pUSD=pend.filter(f=>f.moneda==="USD").reduce((s,f)=>s+f.monto,0);
   const venc=pend.filter(f=>days(f.fechaEmision)>30);
-  const k=curYM(); const cobMes=F.filter(f=>f.cobrada&&ym(f.fechaCobro)===k);
+  const k=curYM();
   const com=F.filter(f=>!f.comisionPagada&&f.comision>0);
   const cARS=com.filter(f=>f.monedaComision!=="USD").reduce((s,f)=>s+f.comision,0), cUSD=com.filter(f=>f.monedaComision==="USD").reduce((s,f)=>s+f.comision,0);
   const emitMes=F.filter(f=>!f.historico&&ym(f.fechaEmision)===k);
   const emitUSD=emitMes.reduce((s,f)=>s+fcUSD(f),0), cobUSD=emitMes.filter(f=>f.cobrada).reduce((s,f)=>s+fcUSD(f),0);
-  let h=`<div class="head"><div><h1>Facturas y cobros</h1><p>Emisión, cobranza y comisiones de recruiters.</p></div><button class="btn lemon" data-act="newFactura">Nueva factura</button></div>
-  <div class="kpis">${kpi("Por cobrar",`${short(pARS)} <span class="muted" style="font-size:14px">ARS</span>`,`${usd(pUSD)} · ${pend.length} facturas`)}
+  const tabs=[["pendientes",`Por cobrar <span class="muted num">${pend.length}</span>`],["cobradas","Cobradas"],["comisiones",`Comisiones <span class="muted num">${com.length}</span>`],["gastos","Gastos"],["todas","Todas"]];
+  let h=`<div class="head"><div><h1>Facturas y cobros</h1><p>Emisión, cobranza, comisiones de recruiters y gastos.</p></div>${UI.fTab==="gastos"?`<button class="btn lemon" data-act="newGasto">Nuevo gasto</button>`:`<button class="btn lemon" data-act="newFactura">Nueva factura</button>`}</div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="Vista">${tabs.map(([v,l])=>`<button data-act="fTab" data-v="${v}" aria-pressed="${UI.fTab===v}">${l}</button>`).join("")}</div>${UI.fTab!=="gastos"?xbtn("facturas"):""}</div>`;
+  if(UI.fTab==="gastos") return h+vGastos();
+  h+=`<div class="kpis">${kpi("Por cobrar",`${short(pARS)} <span class="muted" style="font-size:14px">ARS</span>`,`${usd(pUSD)} · ${pend.length} facturas`)}
   ${kpi("Vencidas (+30 días)",venc.length,venc.length?`${ars(venc.reduce((s,f)=>s+fcARS(f),0))} ARS eq.`:"al día")}
-  ${kpi("Cobranza de lo emitido en "+fm(k),emitUSD?pct(cobUSD/emitUSD):"—",`${usd(cobUSD)} de ${usd(emitUSD)}`, emitUSD?cobUSD/emitUSD:null)}
-  ${kpi("Comisiones a pagar",ars(cARS),`${usd(cUSD)} · ${com.length} facturas`)}</div>
-  <div class="toolbar"><div class="seg" role="group">${[["pendientes","Por cobrar"],["comisiones","Comisiones pendientes"],["cobradas","Cobradas"],["todas","Todas"]].map(([v,l])=>`<button data-act="fTab" data-v="${v}" aria-pressed="${UI.fTab===v}">${l}</button>`).join("")}</div>${xbtn("facturas")}</div>`;
-  let list = UI.fTab==="pendientes"?pend : UI.fTab==="comisiones"?com : UI.fTab==="cobradas"?F.filter(f=>f.cobrada) : F;
-  list=sortBy(list,f=>f.fechaEmision||"9999",-1);
+  ${kpi("Cobrado de lo emitido en "+fm(k),emitUSD?pct(cobUSD/emitUSD):"—",`${usd(cobUSD)} de ${usd(emitUSD)}`, emitUSD?cobUSD/emitUSD:null)}
+  ${kpi("Comisiones a pagar",ars(cARS),`${usd(cUSD)} · ${com.length} facturas`)}</div>`;
+  if(UI.fTab==="comisiones"){
+    const pag=sortBy(F.filter(f=>f.comisionPagada&&f.comision>0),f=>f.fechaPagoComision||"",-1).slice(0,30);
+    h+=`<section class="panel"><div class="panel-head"><h2>Comisiones a pagar</h2><span class="muted">${com.length}</span></div>${com.length?listaFacturas(sortBy(com,f=>f.fechaEmision||"",-1),"com"):`<div class="muted">No hay comisiones pendientes.</div>`}</section>
+    <section class="panel"><div class="panel-head"><h2>Pagadas</h2><span class="muted">últimas ${pag.length}</span></div>${pag.length?listaFacturas(pag,"com"):`<div class="muted">Todavía no se marcó ninguna como pagada.</div>`}</section>`;
+    return h;
+  }
+  let list = UI.fTab==="pendientes"?pend : UI.fTab==="cobradas"?sortBy(F.filter(f=>f.cobrada),f=>f.fechaCobro||"",-1) : F;
+  if(UI.fTab!=="cobradas") list=sortBy(list,f=>f.fechaEmision||"9999",-1);
   if(!list.length) return h+`<div class="empty">${UI.fTab==="pendientes"?"No hay facturas pendientes de cobro.":"Sin facturas en esta vista."}</div>`;
-  h+=`<div class="tablewrap"><table><thead><tr><th>Emisión</th><th>Cliente</th><th>Concepto</th><th>Emisor</th><th class="r">Monto</th><th>Cobro</th><th>Recruiter</th><th class="r">Comisión</th><th></th></tr></thead><tbody>
-  ${list.slice(0,300).map(f=>{const dd=days(f.fechaEmision);
-    const st=f.cobrada?`<span class="pill ok">Cobrada${f.fechaCobro?" "+fd(f.fechaCobro):""}</span>`:dd>30?`<span class="pill crit">${dd} días</span>`:`<span class="pill warn">${dd??"—"} días</span>`;
-    return `<tr class="click" data-act="openFactura" data-id="${f.id}"><td class="num">${fd(f.fechaEmision)}</td><td>${esc(f.cliente)}</td><td>${esc(f.concepto)}<div class="muted" style="font-size:12px">${esc(f.tipo||"")}${f.historico?" · histórico":""}</div></td><td>${esc(f.emisor||"—")}</td><td class="r num">${money(f.monto,f.moneda)}</td><td>${st}</td><td>${esc(f.recruiter||"—")}</td><td class="r num">${f.comision?money(f.comision,f.monedaComision):"—"}${f.comision?`<div>${f.comisionPagada?'<span class="pill ok">pagada</span>':'<span class="pill warn">a pagar</span>'}</div>`:""}</td>
-    <td>${!f.cobrada?`<button class="btn sm" data-act="markCobrada" data-id="${f.id}">Cobrada</button>`:(f.comision>0&&!f.comisionPagada?`<button class="btn sm" data-act="markComision" data-id="${f.id}">Comisión pagada</button>`:"")}</td></tr>`;}).join("")}
+  return h+`<div class="note solo-desk">Tocá una factura para editarla. Si marcaste algo por error, usá <b>Deshacer</b> en la misma fila.</div>`+listaFacturas(list.slice(0,300),"cobro");
+}
+// Estado de cobro y de comisión, cada uno con su acción para marcar o deshacer
+function cobroCell(f){ const dd=days(f.fechaEmision);
+  return f.cobrada ? `<span class="pill ok">Cobrada${f.fechaCobro?" "+fd(f.fechaCobro):""}</span> <button class="btn sm ghost" data-act="unCobrada" data-id="${f.id}">Deshacer</button>`
+    : `<span class="pill ${dd>30?"crit":"warn"}">${dd??"—"} ${dd===1?"día":"días"}</span> <button class="btn sm" data-act="markCobrada" data-id="${f.id}">Marcar cobrada</button>`; }
+function comCell(f){ if(!(f.comision>0)) return `<span class="muted">—</span>`;
+  return `<span class="num">${money(f.comision,f.monedaComision)}</span> ${f.comisionPagada?`<span class="pill ok">Pagada${f.fechaPagoComision?" "+fd(f.fechaPagoComision):""}</span> <button class="btn sm ghost" data-act="unComision" data-id="${f.id}">Deshacer</button>`:`<span class="pill warn">Pendiente</span> <button class="btn sm" data-act="markComision" data-id="${f.id}">Marcar pagada</button>`}`; }
+function listaFacturas(list,modo){
+  const tabla=`<div class="tablewrap solo-desk"><table><thead><tr><th>Emisión</th><th>Cliente</th><th>Concepto</th><th class="r">Monto</th>${modo==="com"?"<th>Recruiter</th><th>Comisión</th>":"<th>Cobro</th><th>Comisión</th>"}</tr></thead><tbody>
+  ${list.map(f=>`<tr class="click" data-act="openFactura" data-id="${f.id}"><td class="num">${fd(f.fechaEmision)}</td><td>${esc(f.cliente)}</td><td>${esc(f.concepto)}<div class="muted" style="font-size:12px">${esc([f.tipo,f.emisor,f.historico?"histórico":""].filter(Boolean).join(" · "))}</div></td><td class="r num">${money(f.monto,f.moneda)}</td>
+    ${modo==="com"?`<td>${esc(f.recruiter||"—")}</td><td class="acts">${comCell(f)}</td>`:`<td class="acts">${cobroCell(f)}</td><td class="acts">${f.comision>0?comCell(f):'<span class="muted">—</span>'}${f.recruiter?`<div class="muted" style="font-size:12px">${esc(f.recruiter)}</div>`:""}</td>`}</tr>`).join("")}
   </tbody></table></div>`;
+  const cards=`<div class="list solo-mob">${list.map(f=>`<div class="segcard click" data-act="openFactura" data-id="${f.id}">
+    <div class="segcard-top"><div style="min-width:0"><b>${esc(f.cliente)}</b><div class="muted">${esc(f.concepto||"")} · ${fd(f.fechaEmision)}</div></div><b class="num">${money(f.monto,f.moneda)}</b></div>
+    ${modo==="com"?"":`<div class="acts">${cobroCell(f)}</div>`}
+    ${f.comision>0?`<div class="acts"><span class="muted">Comisión ${esc(f.recruiter||"")}:</span> ${comCell(f)}</div>`:""}</div>`).join("")}</div>`;
+  return tabla+cards;
+}
+
+// ---- Gastos ----
+function vGastos(){
+  if(!UI._gApl){ UI._gApl=1; api("/api/gastos-recurrentes/aplicar",{method:"POST"}).then(()=>refresh("gastos")).catch(()=>{}); }
+  const min=primerMesSistema(); let k=UI.gMes||curYM(); if(k<min) k=UI.gMes=min;
+  const gs=sortBy(vals(S.gastos).filter(g=>g.mes===k),g=>`${g.recurrenteId?0:1}${g.categoria||""}${g.concepto}`);
+  const vivos=gs.filter(g=>!g.omitido), pend=vivos.filter(g=>!g.pagado);
+  let h=`<div class="toolbar"><button class="btn sm" data-act="gMes" data-v="${antMes(k)}"${antMes(k)<min?" disabled":""} aria-label="Mes anterior">←</button><b style="min-width:70px;text-align:center">${fm(k)}</b><button class="btn sm" data-act="gMes" data-v="${sigMes(k)}" aria-label="Mes siguiente">→</button>${k!==curYM()?`<button class="btn sm ghost" data-act="gMes" data-v="${curYM()}">Mes actual</button>`:""}</div>`;
+  if(isAdmin){
+    const tc=tcFor(k), tot=vivos.reduce((s,g)=>s+toUSD(g.monto,g.moneda,k),0), tp=pend.reduce((s,g)=>s+toUSD(g.monto,g.moneda,k),0);
+    const ars0=vivos.filter(g=>g.moneda!=="USD").reduce((s,g)=>s+(g.monto||0),0), usd0=vivos.filter(g=>g.moneda==="USD").reduce((s,g)=>s+(g.monto||0),0);
+    h+=`<div class="kpis">${kpi("Gastos de "+fm(k),usd(tot),`${ars(ars0)} + ${usd(usd0)} · TC ${nf0.format(tc)}`)}${kpi("Pendiente de pago",usd(tp),`${pend.length} de ${vivos.length} gastos`)}${kpi("Recurrentes",usd(vivos.filter(g=>g.recurrenteId).reduce((s,g)=>s+toUSD(g.monto,g.moneda,k),0)),"del total del mes")}</div>`;
+    const porCat={}; vivos.forEach(g=>porCat[g.categoria||"Otros"]=(porCat[g.categoria||"Otros"]||0)+toUSD(g.monto,g.moneda,k));
+    if(vivos.length) h+=`<section class="panel"><div class="panel-head"><h2>Por categoría</h2><span class="muted">US$ eq.</span></div>${barras(sortBy(Object.entries(porCat),x=>x[1],-1),v=>usd(v))}</section>`;
+  } else h+=`<div class="note">${pend.length} de ${vivos.length} gastos de ${fm(k)} pendientes de pago. Los totales y el resultado los ven los socios.</div>`;
+  h+=`<section class="panel"><div class="panel-head"><h2>Gastos de ${fm(k)}</h2><button class="btn sm" data-act="newGasto">Agregar</button></div>
+  ${gs.length?`<div class="list">${gs.map(g=>`<div class="row click gasto${g.omitido?" omit":""}" data-act="openGasto" data-id="${g.id}"><div class="grow" style="min-width:0"><div><b>${esc(g.concepto)}</b>${g.recurrenteId?' <span class="tag">recurrente</span>':""}</div><div class="muted" style="font-size:12px">${esc(g.categoria||"Otros")}${g.notas?" · "+esc(g.notas):""}</div></div>
+    <div class="acts" style="text-align:right"><div class="num"><b>${money(g.monto,g.moneda)}</b></div>${g.omitido?`<span class="muted" style="font-size:12px">No corresponde este mes</span>`:g.pagado?`<span class="pill ok">Pagado${g.fechaPago?" "+fd(g.fechaPago):""}</span> <button class="btn sm ghost" data-act="unGasto" data-id="${g.id}">Deshacer</button>`:`<span class="pill warn">Pendiente</span> <button class="btn sm" data-act="payGasto" data-id="${g.id}">Marcar pagado</button>`}</div></div>`).join("")}</div>`:`<div class="muted">No hay gastos cargados en ${fm(k)}.</div>`}</section>`;
+  const recs=sortBy(vals(S.gastosRec),r=>`${r.activo===false?1:0}${r.concepto}`);
+  h+=`<section class="panel"><div class="panel-head"><h2>Gastos recurrentes</h2><button class="btn sm" data-act="newRecurrente">Nuevo recurrente</button></div>
+  <div class="muted" style="font-size:13px">Se cargan solos todos los meses con su monto. Si un mes cambia, editá el gasto de ese mes; si cambia de acá en adelante, editá el recurrente.</div>
+  ${recs.length?`<div class="list">${recs.map(r=>`<div class="row click" data-act="openRecurrente" data-id="${r.id}"><div class="grow" style="min-width:0"><b>${esc(r.concepto)}</b><div class="muted" style="font-size:12px">${esc(r.categoria||"Otros")} · desde ${fm(r.desde)}${r.hasta?" hasta "+fm(r.hasta):""}</div></div><div style="text-align:right"><div class="num">${money(r.monto,r.moneda)}</div>${r.activo===false?'<span class="pill">De baja</span>':'<span class="pill ok">Activo</span>'}</div></div>`).join("")}</div>`:`<div class="muted">Todavía no hay gastos recurrentes.</div>`}</section>`;
   return h;
+}
+function drawerGasto(id){
+  const g=id?S.gastos[id]:{mes:UI.gMes||curYM(),moneda:"ARS",categoria:"Otros",pagado:false};
+  if(!g) return;
+  const rec=g.recurrenteId?S.gastosRec[g.recurrenteId]:null;
+  const body=`${rec?`<div class="note">Gasto recurrente: se carga solo todos los meses. Lo que cambies acá afecta <b>solo ${fm(g.mes)}</b>. <a href="#" data-act="openRecurrente" data-id="${rec.id}">Editar el recurrente</a> para cambiarlo de acá en adelante.</div>`:""}
+  <div class="form">${field("Concepto","g-con",g.concepto,"text","full")}${fsel("Categoría","g-cat",CATEGORIAS_GASTO,g.categoria||"Otros")}${id&&g.recurrenteId?`<div class="f"><label>Mes</label><input type="text" value="${fm(g.mes)}" disabled></div>`:field("Mes","g-mes",g.mes,"month")}
+  ${fsel("Moneda","g-mnd",["ARS","USD"],g.moneda)}${field("Monto","g-mon",g.monto,"number")}
+  <label class="check"><input id="g-pag" type="checkbox"${g.pagado?" checked":""}> Pagado</label>${field("Fecha de pago","g-fp",g.fechaPago,"date")}
+  ${farea("Notas","g-not",g.notas)}
+  ${!id?`<label class="check full"><input id="g-rec" type="checkbox"> Se repite todos los meses (gasto recurrente)</label>`:""}</div>`;
+  const extra=id&&g.recurrenteId?`<button class="btn sm" data-act="omitGasto" data-id="${id}">${g.omitido?"Volver a contarlo este mes":"No corresponde este mes"}</button>`:"";
+  openDrawer(id?g.concepto:"Nuevo gasto",id?`${esc(g.categoria||"")} · ${fm(g.mes)}`:"",body,{save:{label:id?"Guardar":"Agregar gasto"},del:id&&!g.recurrenteId?{label:"Eliminar"}:null,extra});
+  drawerSave.save.fn=async()=>{
+    const con=gv("g-con"), mon=gn("g-mon"), mes=id&&g.recurrenteId?g.mes:gv("g-mes");
+    if(!con||mon==null||!mes){ toast("Completá concepto, mes y monto.",true); return; }
+    if(mes<primerMesSistema()){ toast(`Los gastos hasta ${fm(antMes(primerMesSistema()))} vienen de la planilla Economics.`,true); return; }
+    const pag=gv("g-pag"), fp=gv("g-fp")||(pag?today():"");
+    const datos={concepto:con,categoria:gv("g-cat"),moneda:gv("g-mnd"),monto:mon,pagado:pag,fechaPago:pag?fp:"",notas:gv("g-not")};
+    if(!id&&gv("g-rec")){
+      const rid=newId("r");
+      if(!await write("gastosRecurrentes/"+rid,{concepto:con,categoria:datos.categoria,moneda:datos.moneda,monto:mon,desde:mes,hasta:"",notas:datos.notas,activo:true})) return;
+      try{ await api(`/api/gastos-recurrentes/${rid}/propagar`,{method:"POST",body:JSON.stringify({desde:mes})}); }catch(e){}
+      if(pag&&mes<=curYM()) await write(`gastos/gr-${rid}-${mes}`,{pagado:true,fechaPago:fp},"update");
+      await refresh("gastos"); toast("Gasto recurrente creado"); closeDrawer(); return;
+    }
+    if(await write("gastos/"+(id||newId("g")),id?datos:{...datos,mes,creado:today()},id?"update":"set")){ toast(id?"Gasto actualizado":"Gasto agregado"); closeDrawer(); }
+  };
+  if(drawerSave.del) drawerSave.del.fn=async()=>{ if(drawerSave.del.armed){ if(await write("gastos/"+id,null,"delete")){toast("Gasto eliminado");closeDrawer();} } else { drawerSave.del.armed=true; $("[data-act=drawerDel]").textContent="Confirmar: eliminar"; } };
+}
+function drawerRecurrente(rid){
+  const r=rid?S.gastosRec[rid]:{moneda:"ARS",categoria:"Otros",desde:UI.gMes||curYM(),activo:true};
+  if(!r) return;
+  const body=`<div class="form">${field("Concepto","r-con",r.concepto,"text","full")}${fsel("Categoría","r-cat",CATEGORIAS_GASTO,r.categoria||"Otros")}
+  ${fsel("Moneda","r-mnd",["ARS","USD"],r.moneda)}${field("Monto mensual","r-mon",r.monto,"number")}
+  ${field("Desde","r-des",r.desde,"month")}${field("Hasta (opcional)","r-has",r.hasta,"month")}
+  ${rid?field("Aplicar los cambios desde","r-apl",curYM(),"month"):""}
+  <label class="check full"><input id="r-act" type="checkbox"${r.activo!==false?" checked":""}> Activo (desactivalo para dar de baja el gasto)</label>
+  ${farea("Notas","r-not",r.notas)}</div>
+  ${rid?`<div class="note">Los meses desde "Aplicar los cambios desde" que todavía no están pagados se actualizan con el monto nuevo. Los meses pagados no se tocan.</div>`:""}`;
+  openDrawer(rid?r.concepto:"Nuevo gasto recurrente",rid?"Gasto recurrente":"",body,{save:{label:rid?"Guardar":"Crear recurrente"}});
+  drawerSave.save.fn=async()=>{
+    const con=gv("r-con"), mon=gn("r-mon"), des=gv("r-des");
+    if(!con||mon==null||!des){ toast("Completá concepto, monto y desde qué mes.",true); return; }
+    const has=gv("r-has"); if(has&&has<des){ toast("“Hasta” no puede ser antes de “Desde”.",true); return; }
+    const id=rid||newId("r");
+    if(!await write("gastosRecurrentes/"+id,{concepto:con,categoria:gv("r-cat"),moneda:gv("r-mnd"),monto:mon,desde:des,hasta:has,notas:gv("r-not"),activo:gv("r-act")})) return;
+    try{ await api(`/api/gastos-recurrentes/${id}/propagar`,{method:"POST",body:JSON.stringify({desde:rid?gv("r-apl"):des})}); }catch(e){ toast(e.message||"No se pudieron actualizar los meses.",true); }
+    await refresh("gastos"); toast(rid?"Recurrente actualizado":"Recurrente creado"); closeDrawer();
+  };
 }
 
 // ================= ECONOMICS =================
@@ -514,7 +616,7 @@ function vEconomics(){
   let h=`<div class="head"><div><h1>Unit economics</h1><p>Resultado mensual en dólares equivalentes y rentabilidad por búsqueda.</p></div>
   <div class="seg" role="group" aria-label="Año">${years.map(yy=>`<button data-act="ecoYear" data-v="${yy}" aria-pressed="${yy===y}">${yy}</button>`).join("")}</div></div>
   <div class="kpis">${kpi("Ingresos "+y,usd(ing),`${ms.length} meses`)}${kpi("Gastos "+y,usd(gas),`${pct(ing?gas/ing:null)} de los ingresos`)}${kpi("Resultado "+y,usd(res),`margen ${pct(ing?res/ing:null)}`)}${kpi("Resultado mensual promedio",usd(ms.length?res/ms.length:null),"en US$ equivalentes")}</div>
-  <section class="panel"><div class="panel-head"><h2>Por mes</h2><span class="muted">tocá un mes para ver o cargar gastos</span></div>${barChart(P.map(p=>({label:fm(p.k),a:p.ingTot,b:p.gasTot})))}</section>
+  <section class="panel"><div class="panel-head"><h2>Por mes</h2><span class="muted">tocá una barra o un mes para ver el detalle</span></div>${barChart(P.map(p=>({label:fm(p.k),a:p.ingTot,b:p.gasTot,k:p.k})))}</section>
   <div class="tablewrap"><table><thead><tr><th>Mes</th><th class="r">Ingresos ARS</th><th class="r">Ingresos USD</th><th class="r">TC</th><th class="r">Ingresos US$ eq.</th><th class="r">Gastos US$ eq.</th><th class="r">Resultado</th><th class="r">Margen</th><th>Fuente</th></tr></thead><tbody>
   ${P.map(p=>`<tr class="click" data-act="openMes" data-id="${p.k}"><td>${fm(p.k)}</td><td class="r num">${ars(p.ingARS)}</td><td class="r num">${usd(p.ingUSD)}</td><td class="r num">${nf0.format(p.tc)}</td><td class="r num">${usd(p.ingTot)}</td><td class="r num">${usd(p.gasTot)}</td><td class="r num" style="color:${p.res<0?"var(--crit)":"inherit"}">${usd(p.res)}</td><td class="r num">${pct(p.margen)}</td><td><span class="tag">${p.source}</span></td></tr>`).join("")}
   </tbody><tfoot><tr><td>Total ${y}</td><td class="r num">${ars(sum(p=>p.ingARS))}</td><td class="r num">${usd(sum(p=>p.ingUSD))}</td><td></td><td class="r num">${usd(ing)}</td><td class="r num">${usd(gas)}</td><td class="r num">${usd(res)}</td><td class="r num">${pct(ing?res/ing:null)}</td><td></td></tr></tfoot></table></div>
@@ -533,7 +635,7 @@ function vEconomics(){
     <section class="panel"><h2>Facturación por cliente</h2><div class="list">${topCli.slice(0,8).map(([c,v])=>`<div class="row"><span class="grow">${esc(c)}</span><span class="num">${usd(v)}</span><span class="muted num" style="width:44px;text-align:right">${pct(v/(factTotal||1))}</span></div>`).join("")||'<div class="empty">Sin facturas este año.</div>'}</div></section>
     <section class="panel"><h2>Facturación por recruiter</h2><div class="list">${topRec.map(([c,v])=>`<div class="row"><span class="grow">${esc(c)}</span><span class="num">${usd(v)}</span><span class="muted num" style="width:44px;text-align:right">${pct(v/(factTotal||1))}</span></div>`).join("")||'<div class="empty">Sin datos.</div>'}</div></section>
   </div>
-  <div class="note">Hasta septiembre 2026 los ingresos y gastos vienen de la planilla Economics, con todas las líneas de gasto sumadas (la planilla original omitía algunas filas en el total). Desde octubre 2026, los ingresos salen de las facturas emitidas y las comisiones de recruiters se calculan solas; los gastos fijos se cargan por mes.</div>`;
+  <div class="note">Hasta septiembre 2026 los ingresos y gastos vienen de la planilla Economics, con todas las líneas de gasto sumadas (la planilla original omitía algunas filas en el total). Desde octubre 2026, los ingresos salen de las facturas emitidas y las comisiones de recruiters se calculan solas; los gastos se cargan en Facturas y cobros › Gastos (con recurrentes que se cargan solos cada mes).</div>`;
   return h;
 }
 
@@ -543,9 +645,9 @@ function vEconomicsAdm({y,years,ms,P,sum,ing,F,cierres,inicio,cerr,canc,abiertas
   return `<div class="head"><div><h1>Unit economics</h1><p>Ingresos mensuales en dólares equivalentes y costos por búsqueda.</p></div>
   <div class="seg" role="group" aria-label="Año">${years.map(yy=>`<button data-act="ecoYear" data-v="${yy}" aria-pressed="${yy===y}">${yy}</button>`).join("")}</div></div>
   <div class="kpis">${kpi("Ingresos "+y,usd(ing),`${ms.length} meses`)}${kpi("Ingreso mensual promedio",usd(ms.length?ing/ms.length:null),"en US$ equivalentes")}${kpi("Facturas emitidas",F.length,`${cierres.length} de cierre · ${inicio.length} de inicio y avance`)}</div>
-  <section class="panel"><div class="panel-head"><h2>Ingresos por mes</h2></div>${barChart(P.map(p=>({label:fm(p.k),a:p.ingTot,b:0})),{onlyA:true})}</section>
+  <section class="panel"><div class="panel-head"><h2>Ingresos por mes</h2><span class="muted">tocá una barra o un mes para ver el detalle</span></div>${barChart(P.map(p=>({label:fm(p.k),a:p.ingTot,b:0,k:p.k})),{onlyA:true})}</section>
   <div class="tablewrap"><table><thead><tr><th>Mes</th><th class="r">Ingresos ARS</th><th class="r">Ingresos USD</th><th class="r">TC</th><th class="r">Ingresos US$ eq.</th></tr></thead><tbody>
-  ${P.map(p=>`<tr><td>${fm(p.k)}</td><td class="r num">${ars(p.ingARS)}</td><td class="r num">${usd(p.ingUSD)}</td><td class="r num">${nf0.format(p.tc)}</td><td class="r num">${usd(p.ingTot)}</td></tr>`).join("")}
+  ${P.map(p=>`<tr class="click" data-act="openMes" data-id="${p.k}"><td>${fm(p.k)}</td><td class="r num">${ars(p.ingARS)}</td><td class="r num">${usd(p.ingUSD)}</td><td class="r num">${nf0.format(p.tc)}</td><td class="r num">${usd(p.ingTot)}</td></tr>`).join("")}
   </tbody><tfoot><tr><td>Total ${y}</td><td class="r num">${ars(sum(p=>p.ingARS))}</td><td class="r num">${usd(sum(p=>p.ingUSD))}</td><td></td><td class="r num">${usd(ing)}</td></tr></tfoot></table></div>
   <h2>Unidad: la búsqueda</h2>
   <div class="kpis">
@@ -599,8 +701,8 @@ function openDrawer(title,sub,body,{save,del,extra}={}){
 function closeDrawer(){ $("#overlay").innerHTML=""; drawerSave=null; }
 
 // ---------- API ----------
-const RES_KEY = {busquedas:"busquedas",candidatos:"candidatos",postulaciones:"postulaciones",feedback:"feedback",busquedasFin:"fin",facturas:"facturas",clientes:"clientes",leads:"leads",meses:"meses",propuestas:"propuestas"};
-const ADMIN_RES = new Set(["busquedasFin","facturas","clientes","leads","meses","propuestas"]);
+const RES_KEY = {busquedas:"busquedas",candidatos:"candidatos",postulaciones:"postulaciones",feedback:"feedback",busquedasFin:"fin",facturas:"facturas",clientes:"clientes",leads:"leads",meses:"meses",propuestas:"propuestas",gastos:"gastos",gastosRecurrentes:"gastosRec"};
+const ADMIN_RES = new Set(["busquedasFin","facturas","clientes","leads","meses","propuestas","gastos","gastosRecurrentes"]);
 function apiPath(path){ const [c,id]=path.split("/"); if(c==="economics") return ["meses",id.replace(/^m-/,"")]; if(c==="equipo"||c==="objetivos") return ["config",c]; return [c,id]; }
 async function api(url,opts={}){
   const r=await fetch(url,{credentials:"same-origin",headers:{"content-type":"application/json"},...opts});
@@ -909,30 +1011,19 @@ function drawerFactura(id,{bid}={}){
 
 // ---- mes ----
 function drawerMes(k){
-  const p=pnl(k); const editable=p.source==="sistema";
-  const m=mesDoc(k)||{};
-  const fixed=(m.gastos||[]);
-  let body=`<div class="kpis">${kpi("Ingresos",usd(p.ingTot),`${ars(p.ingARS)} + ${usd(p.ingUSD)}`)}${kpi("Gastos",usd(p.gasTot),"US$ eq.")}${kpi("Resultado",usd(p.res),`margen ${pct(p.margen)}`)}</div>`;
-  if(!editable){
-    body+=`<div class="note">Mes importado de la planilla Economics (solo lectura). TC ${nf0.format(p.tc)}.</div><div class="tablewrap"><table><thead><tr><th>Concepto</th><th class="r">Monto</th></tr></thead><tbody>${p.gastos.map(g=>`<tr><td>${esc(g.concepto)}</td><td class="r num">${money(g.monto,g.moneda)}</td></tr>`).join("")}</tbody></table></div>`;
-    openDrawer("Resultado "+fm(k),"",body,{});
-    return;
+  const p=pnl(k), sistema=p.source==="sistema", m=S.meses[k]||{};
+  const fs=sortBy(vals(S.facturas).filter(f=>!f.historico&&ym(f.fechaEmision)===k),f=>f.fechaEmision||"");
+  let body=`<div class="kpis">${kpi("Ingresos",usd(p.ingTot),`${ars(p.ingARS)} + ${usd(p.ingUSD)}`)}${isAdmin?kpi("Gastos",usd(p.gasTot),"US$ eq.")+kpi("Resultado",usd(p.res),`margen ${pct(p.margen)}`):""}</div>`;
+  body+=`<div class="section"><div class="panel-head"><span class="label">Facturas emitidas (${fs.length})</span><span class="muted num">TC ${nf0.format(p.tc)}</span></div>${fs.length?`<div class="list">${fs.map(f=>`<div class="row click" data-act="openFactura" data-id="${f.id}"><div class="grow" style="min-width:0"><b>${esc(f.cliente)}</b><div class="muted" style="font-size:12px">${esc(f.concepto||"")} · ${fd(f.fechaEmision)}</div></div><div style="text-align:right"><div class="num">${money(f.monto,f.moneda)}</div>${f.cobrada?'<span class="pill ok">Cobrada</span>':'<span class="pill warn">Por cobrar</span>'}</div></div>`).join("")}</div>`:`<div class="muted" style="font-size:13px">${p.source==="planilla"?"Mes anterior a las facturas: los ingresos vienen de la planilla Economics.":"No hay facturas emitidas este mes."}</div>`}</div>`;
+  if(isAdmin){
+    const porCat={}; p.gastos.forEach(g=>{ const c=g.categoria||(sistema?"Otros":"Planilla"); porCat[c]=(porCat[c]||0)+toUSD(g.monto,g.moneda,k); });
+    body+=`<div class="section"><span class="label">Gastos por categoría (US$ eq.)</span>${p.gastos.length?barras(sortBy(Object.entries(porCat),x=>x[1],-1),v=>usd(v)):'<div class="muted" style="font-size:13px">Sin gastos cargados.</div>'}</div>
+    <div class="section"><span class="label">Detalle de gastos</span>${p.gastos.length?`<div class="list">${sortBy(p.gastos,g=>-toUSD(g.monto,g.moneda,k)).map(g=>`<div class="row${g.id?" click":""}"${g.id?` data-act="openGasto" data-id="${g.id}"`:""}><div class="grow"><div>${esc(g.concepto)}</div>${g.categoria?`<div class="muted" style="font-size:12px">${esc(g.categoria)}</div>`:""}</div><span class="num">${money(g.monto,g.moneda)}</span></div>`).join("")}</div>`:""}
+    ${sistema?`<div><button class="btn sm" data-act="irGastos" data-v="${k}">Cargar o editar gastos de ${fm(k)}</button></div>`:`<div class="note">Gastos importados de la planilla Economics (solo lectura).</div>`}</div>`;
+    if(sistema) body+=`<div class="section"><span class="label">Tipo de cambio</span><div class="form">${field("ARS por USD de "+fm(k),"m-tc",m.tc||p.tc,"number")}</div></div>`;
   }
-  const autos=p.gastos.filter(g=>g.auto);
-  const rows=(fixed.length?fixed:[{concepto:"",moneda:"ARS",monto:null}]);
-  body+=`<div class="form">${field("Tipo de cambio del mes (ARS por USD)","m-tc",m.tc||p.tc,"number")}</div>
-    <div class="section"><span class="label">Gastos fijos y variables</span>
-    <div class="tablewrap"><table><thead><tr><th>Concepto</th><th>Moneda</th><th class="r">Monto</th></tr></thead><tbody id="m-rows">
-    ${rows.map((g,i)=>`<tr><td><input id="m-c-${i}" type="text" value="${esc(g.concepto)}" style="width:100%"></td><td><select id="m-m-${i}">${opt(["ARS","USD"],g.moneda)}</select></td><td class="r"><input id="m-v-${i}" type="number" value="${g.monto??""}" style="width:130px"></td></tr>`).join("")}
-    </tbody></table></div>
-    <div class="toolbar"><button class="btn sm" data-act="mesAddRow" data-k="${k}">Agregar línea</button><button class="btn sm" data-act="mesCopy" data-k="${k}">Copiar gastos del mes anterior</button></div>
-    ${autos.length?`<div class="note">Calculado solo a partir de las facturas: ${autos.map(g=>`${esc(g.concepto)} ${money(g.monto,g.moneda)}`).join(" · ")}</div>`:""}</div>`;
-  openDrawer("Resultado "+fm(k),"Cargá los gastos del mes; los ingresos salen de las facturas.",body,{save:{label:"Guardar mes"}});
-  drawerSave.rows=rows.length;
-  drawerSave.save.fn=async()=>{
-    const gastos=[]; for(let i=0;i<drawerSave.rows;i++){ const c=gv("m-c-"+i), v=gn("m-v-"+i); if(c&&v) gastos.push({concepto:c,moneda:gv("m-m-"+i),monto:v}); }
-    if(await write("economics/m-"+k,{mes:k,tc:gn("m-tc"),gastos})){toast("Mes guardado");closeDrawer();}
-  };
+  openDrawer("Detalle de "+fm(k),p.source==="planilla"?"Planilla Economics":p.source==="facturas"?"Ingresos de facturas · gastos de la planilla":"Ingresos de facturas · gastos cargados",body,isAdmin&&sistema?{save:{label:"Guardar tipo de cambio"}}:{});
+  if(isAdmin&&sistema) drawerSave.save.fn=async()=>{ const tc=gn("m-tc"); if(!tc){ toast("Cargá el tipo de cambio.",true); return; } if(await write("economics/m-"+k,{mes:k,tc})){ toast("Tipo de cambio guardado"); drawerMes(k); } };
 }
 
 // ---------- events ----------
@@ -977,10 +1068,28 @@ document.addEventListener("click",async e=>{
     case "openCliente": drawerCliente(id); break;
     case "newFactura": drawerFactura(null,{bid:t.dataset.bid}); break;
     case "openFactura": drawerFactura(id); break;
-    case "markCobrada": e.stopPropagation(); if(await write("facturas/"+id,{cobrada:true,fechaCobro:today()},"update")) toast("Factura marcada como cobrada"); break;
-    case "markComision": e.stopPropagation(); if(await write("facturas/"+id,{comisionPagada:true,fechaPagoComision:today()},"update")) toast("Comisión marcada como pagada"); break;
+    case "markCobrada": case "unCobrada": case "markComision": case "unComision": case "payGasto": case "unGasto": {
+      e.stopPropagation();
+      const M={markCobrada:["facturas",{cobrada:true,fechaCobro:today()},{cobrada:false,fechaCobro:""},"Factura marcada como cobrada"],
+        unCobrada:["facturas",{cobrada:false,fechaCobro:""},null,"La factura volvió a Por cobrar"],
+        markComision:["facturas",{comisionPagada:true,fechaPagoComision:today()},{comisionPagada:false,fechaPagoComision:""},"Comisión marcada como pagada"],
+        unComision:["facturas",{comisionPagada:false,fechaPagoComision:""},null,"La comisión volvió a pendiente"],
+        payGasto:["gastos",{pagado:true,fechaPago:today()},{pagado:false,fechaPago:""},"Gasto marcado como pagado"],
+        unGasto:["gastos",{pagado:false,fechaPago:""},null,"El gasto volvió a pendiente"]}[a];
+      const col=M[0], prev=S[col==="facturas"?"facturas":"gastos"][id]||{};
+      const undo=M[2]||Object.fromEntries(Object.keys(M[1]).map(k=>[k,prev[k]??""]));
+      if(await write(`${col}/${id}`,M[1],"update")) toastUndo(M[3],async()=>{ if(await write(`${col}/${id}`,undo,"update")) toast("Listo, se deshizo"); });
+      break; }
+    case "undo": { const f=undoFn; undoFn=null; $("#toastHost").innerHTML=""; if(f) await f(); break; }
+    case "gMes": UI.gMes=v; render(); break;
+    case "newGasto": drawerGasto(null); break;
+    case "openGasto": drawerGasto(id); break;
+    case "omitGasto": { const g=S.gastos[id]; if(g&&await write("gastos/"+id,{omitido:!g.omitido},"update")){ toast(g.omitido?"El gasto vuelve a contar este mes":"Listo: este mes no se cuenta"); closeDrawer(); } break; }
+    case "newRecurrente": drawerRecurrente(null); break;
+    case "openRecurrente": drawerRecurrente(id); break;
+    case "irGastos": UI.fTab="gastos"; UI.gMes=v; closeDrawer(); if(location.hash!=="#cobros") location.hash="#cobros"; else render(); break;
     case "calcCom": { const r=recruiters().find(x=>x.nombre===gv("fc-rec")); const m=gn("fc-mon"); if(!r||!m){toast("Elegí recruiter y monto.",true);break;} document.getElementById("fc-com").value=Math.round(m*(+r.comisionPct||0)/100); document.getElementById("fc-cmnd").value=gv("fc-mnd"); break; }
-    case "openMes": if(isAdmin) drawerMes(id); break;
+    case "openMes": if(canFin) drawerMes(id); break;
     case "newFeedback": drawerFeedback(null); break;
     case "openFeedback": drawerFeedback(id); break;
     case "fbEstado": UI.fbEstado=v; render(); break;
@@ -1013,11 +1122,6 @@ document.addEventListener("click",async e=>{
     case "logout": await fetch("/api/logout",{method:"POST"}); location.reload(); break;
     case "minAdd": { const u=gv("min-u"); if(!u){toast("Pegá el link de Granola.",true);break;} flushMin(); $("#min-u").value=""; $("#min-t").value=""; $("#min-list").innerHTML=minList(); toast("Minuta agregada: guardá para confirmar"); break; }
     case "minRemove": { pendingMin.splice(+t.dataset.i,1); $("#min-list").innerHTML=minList(); break; }
-    case "mesAddRow": { const i=drawerSave.rows++; $("#m-rows").insertAdjacentHTML("beforeend",`<tr><td><input id="m-c-${i}" type="text" style="width:100%"></td><td><select id="m-m-${i}">${opt(["ARS","USD"],"ARS")}</select></td><td class="r"><input id="m-v-${i}" type="number" style="width:130px"></td></tr>`); break; }
-    case "mesCopy": { const k=t.dataset.k; const [y,mm]=k.split("-").map(Number); const pd=new Date(y,mm-2,1); const pk=`${pd.getFullYear()}-${String(pd.getMonth()+1).padStart(2,"0")}`;
-      const src=(mesDoc(pk)?.gastos)||(hist()[pk]?.gastos)||[]; const rows=src.filter(g=>!/freelance|comisi/i.test(g.concepto));
-      $("#m-rows").innerHTML=rows.map((g,i)=>`<tr><td><input id="m-c-${i}" type="text" value="${esc(g.concepto)}" style="width:100%"></td><td><select id="m-m-${i}">${opt(["ARS","USD"],g.moneda)}</select></td><td class="r"><input id="m-v-${i}" type="number" value="${g.monto}" style="width:130px"></td></tr>`).join(""); drawerSave.rows=rows.length;
-      toast(`Copiadas ${rows.length} líneas de ${fm(pk)} (sin comisiones)`); break; }
     case "addRec": { const eq={...(S.equipo||{}),recruiters:[...recruiters(),{nombre:"Nueva recruiter",activa:true,capacidad:4,comisionPct:20}]}; delete eq.id; if(await write("equipo/config",eq)) toast("Recruiter agregada: editá el nombre"); break; }
     case "saveEquipo": { const n=+t.dataset.n; const list=[]; for(let i=0;i<n;i++){ const nm=gv("rec-n-"+i); if(nm) list.push({nombre:nm,activa:gv("rec-a-"+i),capacidad:gn("rec-c-"+i)||4,comisionPct:gn("rec-p-"+i)||0}); }
       const prevR=(S.equipo&&S.equipo.recruiters)||[]; for(let i=0;i<Math.min(prevR.length,n);i++){ const o=prevR[i]&&prevR[i].nombre, nn=gv("rec-n-"+i); if(o&&nn&&o!==nn){ try{ await api("/api/equipo/renombrar",{method:"POST",body:JSON.stringify({de:o,a:nn})}); }catch(e){} } }
@@ -1497,7 +1601,7 @@ function funnelPanel(){
 }
 
 // ---- Historial ----
-const HIST_LAB={busquedas:"Búsqueda",busquedasFin:"Finanzas de búsqueda",candidatos:"Candidato",postulaciones:"Postulación",facturas:"Factura",clientes:"Cliente",leads:"Lead",meses:"Mes (P&L)",feedback:"Pedido de mejora"};
+const HIST_LAB={gastos:"Gasto",gastosRecurrentes:"Gasto recurrente",busquedas:"Búsqueda",busquedasFin:"Finanzas de búsqueda",candidatos:"Candidato",postulaciones:"Postulación",facturas:"Factura",clientes:"Cliente",leads:"Lead",meses:"Mes (P&L)",feedback:"Pedido de mejora"};
 const ACC_LAB={crear:"Creó",editar:"Editó",borrar:"Eliminó",restaurar:"Restauró",adjuntar:"Adjuntó archivo"};
 function histNombre(hh){ const id=hh.registroId; const b=S.busquedas[id], c=S.candidatos[id], f=S.facturas[id], l=S.leads[id], cl=S.clientes[id], po=S.postulaciones[id];
   if(b) return `${b.puesto} · ${b.cliente}`; if(c) return c.nombre; if(f) return `${f.concepto||"Factura"} · ${f.cliente||""}`; if(l) return l.empresa; if(cl) return cl.nombre;

@@ -15,6 +15,7 @@ import { registerComercial } from "./comercial.js";
 import { registerConsistencia } from "./consistencia.js";
 import { registerContratos } from "./contratos.js";
 import { registerSeguimiento, migrarSeguimiento, conEtapas } from "./seguimiento.js";
+import { registerGastos, migrarGastos } from "./gastos.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -131,6 +132,9 @@ const R = {
   leads: { t: S.leads, min: "admin" },
   // meses: la administradora ve ingresos y TC, nunca los gastos (se quitan en el GET). Solo socios escriben.
   meses: { t: S.meses, min: "admin", write: "socio", pk: "mes" },
+  // gastos: la Administradora los carga y marca pagos; los totales y el resultado solo los muestra el frontend a socios.
+  gastos: { t: S.gastos, min: "admin", del: "todos" },
+  gastosRecurrentes: { t: S.gastosRecurrentes, min: "admin" },
 };
 function resource(req, res, escritura = false) {
   const r = R[req.params.res];
@@ -149,6 +153,7 @@ registerComercial(app, { pool, auth, HX });
 registerConsistencia(app, { pool, auth, HX });
 registerContratos(app, { pool, auth });
 registerSeguimiento(app, { pool, auth });
+registerGastos(app, { pool, auth });
 
 // Costos unitarios por año, solo ratios (nunca totales): para socios y administradoras.
 app.get("/api/unit-costs", auth("admin"), async (req, res, next) => {
@@ -255,5 +260,6 @@ async function bootstrapAdmin() {
 
 const PORT = process.env.PORT || 5000;
 migrarSeguimiento(pool).catch((e) => console.error("No se pudo preparar el seguimiento de etapas:", e.message))
+  .then(() => migrarGastos(pool)).catch((e) => console.error("No se pudieron preparar los gastos:", e.message))
   .then(bootstrapAdmin).catch((e) => console.error("No se pudo crear el usuario inicial:", e.message))
   .finally(() => app.listen(PORT, "0.0.0.0", () => console.log(`Lemon Talent OS en puerto ${PORT}`)));

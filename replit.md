@@ -28,7 +28,7 @@ Sistema interno de Lemon Talent, consultora de recruiting en Argentina. Reemplaz
 Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` en `server/index.js`).
 
 - `socio`: ve y edita todo.
-- `admin` (Administradora): todo lo de recruiter más `facturas`, `busquedasFin`, `clientes`, `leads`, `config` (equipo y objetivos) y alta/edición de usuarios **recruiter**. En `meses` el servidor le quita el campo `gastos` y no puede escribir. Ve costos unitarios solo vía `GET /api/unit-costs` (ratios por año, nunca totales). No ve gastos, resultado ni margen.
+- `admin` (Administradora): todo lo de recruiter más `facturas`, `busquedasFin`, `clientes`, `leads`, `config` (equipo y objetivos) y alta/edición de usuarios **recruiter**. En `meses` el servidor le quita el campo `gastos` y no puede escribir. Ve costos unitarios solo vía `GET /api/unit-costs` (ratios por año, nunca totales). **Carga gastos** (`gastos`, `gastosRecurrentes`) y marca pagos, pero el frontend no le muestra totales, resultado ni margen (decisión de los socios, oct-2026).
 - `recruiter`: ve y edita `busquedas`, `candidatos`, `postulaciones` y `feedback`. **No puede leer** `facturas`, `busquedasFin`, `clientes`, `leads`, `meses` ni `config/objetivos`.
 - Los permisos se aplican **en el servidor** (objeto `R` en `server/index.js`: `min` = rol mínimo para leer/escribir, `write` = rol mínimo para escribir si es más alto). Ocultar algo en el frontend no alcanza. Toda colección nueva con plata o datos comerciales lleva `min: "admin"`, y si incluye costos o resultado, `min: "socio"`.
 - En el frontend: `isAdmin` = socio, `canFin` = socio o administradora.
@@ -46,6 +46,7 @@ Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` e
 | `facturas` | Monto, moneda (ARS/USD), emisor (MATI / PAU / Invoice), tipo (Inicio y avance / Cierre / 50% anticipo / Cancelación), cobrada, comisión de la recruiter y si ya se pagó. `historico=true` son montos pre-dic-2024 tomados de la planilla. |
 | `clientes`, `leads` | CRM. Cuando un lead pasa a "Ganado", el frontend crea el cliente. |
 | `meses` | P&L. `historico=true` (ene-2023 a sep-2026) trae ingresos fijos de la planilla Economics. Desde oct-2026 los ingresos salen de `facturas` por fecha de emisión y las comisiones se suman solas como gasto. Acá solo se cargan el TC y los gastos fijos. |
+| `gastos`, `gastos_recurrentes` | Gastos del negocio desde el primer mes que no viene de la planilla. Los recurrentes se cargan solos cada mes (fila `gr-<recurrente>-<mes>`, editable o "no corresponde este mes"); cada gasto tiene categoría, moneda y estado de pago. Ver `server/gastos.js`. Las líneas que antes se cargaban en `meses.gastos` se migraron solas a esta tabla. |
 | `config` | `equipo` (recruiters, capacidad, % comisión, ICPs) y `objetivos` (facturación mensual, ticket, time to fill, etc.). |
 | `feedback` | Pedidos de mejora del equipo, con estado y respuesta. |
 
