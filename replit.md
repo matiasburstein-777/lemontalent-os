@@ -58,6 +58,10 @@ Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` e
 - **Link para el cliente**: `GET/POST/DELETE /api/links/:busquedaId` (cualquier usuario logueado) y la página pública `/c/:token`, sin login. Muestra estado, funnel, candidatos presentados (nombre, rol y empresa) y los textos del link. Nunca montos, notas internas, contactos ni semáforo.
 - Las columnas y tablas nuevas se crean solas al arrancar (`migrarSeguimiento`), sin `db:push`.
 
+## Menú
+
+Panel, Bandeja, Weekly, Búsquedas, Candidatos, **Equipo** (resumen de recruiters + "Editar equipo": capacidad y comisión) · Clientes y leads, Facturas y cobros, Unit economics · **Configuración** (pestañas: Usuarios y accesos, Objetivos, Conexiones, Historial, Calidad de datos, Papelera y respaldo, Pedidos de mejora; cada rol ve las suyas). Las rutas viejas (`#ajustes`, `#historial`, `#calidad`, `#conexiones`, `#mejoras`) abren la pestaña correspondiente.
+
 ## Vista de recruiter (`#recruiters`, `#recruiter/<nombre>`)
 
 - Socios y Administradora ven el resumen del equipo y el detalle de cualquier recruiter; una recruiter ve solo su panel ("Mi panel").

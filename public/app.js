@@ -160,22 +160,18 @@ const VIEWS = [
   {id:"weekly",label:"Weekly"},
   {id:"busquedas",label:"Búsquedas",cnt:()=>activas().length},
   {id:"candidatos",label:"Candidatos",cnt:()=>vals(S.candidatos).length},
-  {id:"recruiters",label:()=>canFin?"Recruiters":"Mi panel"},
+  {id:"recruiters",label:()=>canFin?"Equipo":"Mi panel"},
   {sep:"Negocio",admin:true},
   {id:"crm",label:"Clientes y leads",admin:true,cnt:()=>vals(S.leads).filter(l=>!["Ganado","Perdido"].includes(l.etapa)).length},
   {id:"cobros",label:"Facturas y cobros",admin:true,cnt:()=>vals(S.facturas).filter(f=>!f.cobrada).length},
   {id:"economics",label:"Unit economics",admin:true},
-  {id:"ajustes",label:"Equipo y accesos",admin:true},
   {sep:"Sistema"},
-  {id:"historial",label:"Historial de cambios"},
-  {id:"calidad",label:"Calidad de datos",admin:true,cnt:()=>calidadDatos().length},
-  {id:"conexiones",label:"Conexiones"},
-  {id:"mejoras",label:"Pedidos de mejora",cnt:()=>vals(S.feedback).filter(f=>f.estado==="Pendiente"||f.estado==="En curso").length},
+  {id:"config",label:"Configuración",cnt:()=>(canFin?calidadDatos().length:0)+vals(S.feedback).filter(f=>f.estado==="Pendiente"||f.estado==="En curso").length},
 ];
 const labOf = v => typeof v.label==="function" ? v.label() : v.label;
 function renderNav(){
   $("#nav").innerHTML = VIEWS.filter(v=>!v.admin||canFin).map(v=> v.sep ? `<div class="nav-sep">${v.sep}</div>` :
-    `<a href="#${v.id}" data-view="${v.id}" ${view===v.id||(v.id==="recruiters"&&view==="recruiter")?'aria-current="page"':""}>${labOf(v)}${v.cnt?`<span class="cnt">${v.cnt()}</span>`:""}</a>`).join("");
+    `<a href="#${v.id}" data-view="${v.id}" ${view===v.id||(v.id==="recruiters"&&view==="recruiter")||(v.id==="config"&&CONFIG_VIEWS.includes(view))?'aria-current="page"':""}>${labOf(v)}${v.cnt?`<span class="cnt">${v.cnt()}</span>`:""}</a>`).join("");
   $("#role").textContent = isAdmin ? "Socio · acceso completo" : isAdm ? "Administradora · operación y facturación" : "Recruiter · operación"; $("#who").textContent = me.nombre||"";
 }
 let raf=0;
@@ -183,8 +179,8 @@ function schedule(){ if(raf) return; raf=requestAnimationFrame(()=>{raf=0; rende
 function render(){
   renderNav();
   const m=$("#main");
-  if((["crm","cobros","economics","ajustes","propuestas","calidad"].includes(view)) && !canFin){ view="panel"; }
-  const fn = {recruiters:vRecruiters,recruiter:vRecruiter,ficha:vFicha,panel:vPanel,busquedas:vBusquedas,candidatos:vCandidatos,crm:vCrm,cobros:vCobros,economics:vEconomics,ajustes:vAjustes,mejoras:vMejoras,propuestas:vPropuestas,conexiones:vConexiones,weekly:vWeekly,historial:vHistorial,calidad:vCalidad}[view] || vPanel;
+  if((["crm","cobros","economics","propuestas"].includes(view)) && !canFin){ view="panel"; }
+  const fn = {config:vConfig,recruiters:vRecruiters,recruiter:vRecruiter,ficha:vFicha,panel:vPanel,busquedas:vBusquedas,candidatos:vCandidatos,crm:vCrm,cobros:vCobros,economics:vEconomics,mejoras:vMejoras,propuestas:vPropuestas,conexiones:vConexiones,weekly:vWeekly,historial:vHistorial,calidad:vCalidad}[view] || vPanel;
   const sx=window.scrollX, sy=window.scrollY;
   const active=document.activeElement; const aid=active&&active.id; const sel=aid&&active.selectionStart;
   m.innerHTML = fn();
@@ -475,7 +471,7 @@ function vRecruiters(){
   const r=rangoPer(UI.recPer), o=obj();
   const rows=sortBy(recruiters().map(x=>({...statsRec(x.nombre,r),activa:x.activa})),x=>`${x.activa?0:1}${String(99-x.act.length).padStart(2,"0")}`);
   const comPend=n=>vals(S.facturas).filter(f=>esDe(f,n)&&f.comision>0&&!f.comisionPagada);
-  let h=`<div class="head"><div><h1>Recruiters</h1><p>Carga, resultados y comisiones de cada recruiter. Tocá una para ver el detalle.</p></div>${selPer()}</div>`;
+  let h=`<div class="head"><div><h1>Equipo</h1><p>Carga, resultados y comisiones de cada recruiter. Tocá una para ver el detalle.</p></div><div class="toolbar">${selPer()}<button class="btn" data-act="editEquipo">Editar equipo</button></div></div>`;
   h+=`<div class="tablewrap solo-desk"><table><thead><tr><th>Recruiter</th><th class="r">Activas</th><th class="r">En riesgo</th><th class="r">Iniciadas</th><th class="r">Cerradas</th><th class="r">Éxito</th><th class="r">Time to fill</th><th class="r">1ª terna</th><th class="r">Comisiones pendientes</th></tr></thead><tbody>
   ${rows.map(x=>{ const cp=comPend(x.n); return `<tr class="click" data-act="openRecruiter" data-id="${esc(x.n)}"><td><b>${esc(x.n)}</b>${x.activa?"":' <span class="tag">inactiva</span>'}</td><td class="r num">${x.act.length}${x.cap?` / ${x.cap}`:""}</td><td class="r num">${x.riesgo.length?`<span class="pill crit">${x.riesgo.length}</span>`:"0"}</td><td class="r num">${x.ini.length}</td><td class="r num">${x.cerr.length}</td><td class="r num">${pct(x.exito)}</td><td class="r num">${fmtD(x.ttfA)}</td><td class="r num">${fmtD(x.terna)}</td><td class="r num">${cp.length?`${sumMon(cp)} · ${cp.length}`:"—"}</td></tr>`; }).join("")}
   </tbody></table></div>
@@ -498,7 +494,7 @@ function vRecruiter(){
   const comR=com?com.filter(f=>enR(f.fechaEmision,r)||(!f.comisionPagada)):[];
   const pend=comR.filter(f=>!f.comisionPagada), pag=comR.filter(f=>f.comisionPagada);
   const fact=canFin?vals(S.facturas).filter(f=>esDe(f,n)&&enR(f.fechaEmision,r)):[];
-  let h=`<div class="head"><div>${canFin?`<a href="#recruiters" class="muted" style="font-size:13px">← Recruiters</a>`:""}<h1>${esc(n)}</h1><p class="keep">${st.act.length} ${st.act.length===1?"búsqueda activa":"búsquedas activas"}${st.cap?` de ${st.cap} de capacidad`:""} · ${r.lab}</p></div>${selPer()}</div>`;
+  let h=`<div class="head"><div>${canFin?`<a href="#recruiters" class="muted" style="font-size:13px">← Equipo</a>`:""}<h1>${esc(n)}</h1><p class="keep">${st.act.length} ${st.act.length===1?"búsqueda activa":"búsquedas activas"}${st.cap?` de ${st.cap} de capacidad`:""} · ${r.lab}</p></div>${selPer()}</div>`;
   if(st.riesgo.length) h+=`<div class="panel cal crit"><b>${st.riesgo.length} ${st.riesgo.length===1?"búsqueda en riesgo":"búsquedas en riesgo"}</b><span>${st.riesgo.map(b=>`<a href="#busqueda/${encodeURIComponent(b.id)}">${esc(b.puesto)} · ${esc(b.cliente)}</a>`).join(" · ")}</span></div>`;
   h+=`<div class="kpis">${kpi("Activas",st.act.length,st.cap?`capacidad ${st.cap}`:"",st.cap?st.act.length/st.cap:null)}${kpi("Iniciadas",st.ini.length,r.lab)}${kpi("Cerradas",st.cerr.length,`${st.canc.length} canceladas · éxito ${pct(st.exito)}`)}${kpi("Time to fill",fmtD(st.ttfA),`equipo ${fmtD(ttfEq)} · objetivo ${o.timeToFillDias} d`)}${kpi("Primera terna",fmtD(st.terna),"promedio desde el inicio")}${kpi("Presentados por búsqueda",st.pres==null?"—":nf1.format(st.pres),"candidatos que llegaron al cliente")}${canFin?kpi("Facturación generada",usd(fact.reduce((s,f)=>s+fcUSD(f),0)),`${fact.length} facturas`):""}</div>`;
   // Tendencia mensual
@@ -755,24 +751,39 @@ function vEconomicsAdm({y,years,ms,P,sum,ing,F,cierres,inicio,cerr,canc,abiertas
 }
 
 // ================= AJUSTES =================
-function vAjustes(){
-  const o=obj(); const r=recruiters();
-  return `<div class="head"><div><h1>Equipo y accesos</h1><p>Usuarios, capacidad del equipo y metas que usan el panel y los indicadores.</p></div></div>
-  <div class="grid2">
-  <section class="panel"><div class="panel-head"><h2>Recruiters</h2><button class="btn sm" data-act="addRec">Agregar</button></div>
-    <div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Activa</th><th class="r">Capacidad</th><th class="r">Comisión %</th></tr></thead><tbody>
-    ${r.map((x,i)=>`<tr><td><input id="rec-n-${i}" type="text" value="${esc(x.nombre)}" style="width:100%"></td><td><input id="rec-a-${i}" type="checkbox"${x.activa?" checked":""} aria-label="Activa"></td><td class="r"><input id="rec-c-${i}" type="number" value="${x.capacidad??4}" style="width:70px"></td><td class="r"><input id="rec-p-${i}" type="number" value="${x.comisionPct??20}" style="width:70px"></td></tr>`).join("")}
-    </tbody></table></div>
-    <div><button class="btn primary" data-act="saveEquipo" data-n="${r.length}">Guardar equipo</button></div>
-    <div class="note">La capacidad es la cantidad de búsquedas simultáneas que puede llevar cada recruiter. La comisión se propone sola al cargar una factura.</div></section>
-  <section class="panel"><h2>Objetivos</h2><div class="form">
+// ================= CONFIGURACIÓN =================
+// Una sola sección con pestañas; cada rol ve las suyas. Las rutas viejas (#historial, #calidad…) abren la pestaña que corresponde.
+const CONFIG_VIEWS=["config"];
+function tabsConfig(){
+  return [canFin&&["usuarios","Usuarios y accesos"],canFin&&["objetivos","Objetivos"],["conexiones","Conexiones"],["historial","Historial de cambios"],canFin&&["calidad",`Calidad de datos <span class="muted num">${calidadDatos().length}</span>`],isAdmin&&["papelera","Papelera y respaldo"],["mejoras",`Pedidos de mejora <span class="muted num">${vals(S.feedback).filter(f=>f.estado==="Pendiente"||f.estado==="En curso").length}</span>`]].filter(Boolean);
+}
+function abrirTabConfig(){ const t=UI.cfgTab; if(t==="conexiones") refresh("conexiones"); if(t==="papelera") cargarPapelera(); if(t==="historial") S.historial=null; }
+function vConfig(){
+  const tabs=tabsConfig(); if(!tabs.some(([v])=>v===UI.cfgTab)) UI.cfgTab=tabs[0][0];
+  const t=UI.cfgTab;
+  const body={usuarios:()=>vUsuarios(),objetivos:objetivosBox,conexiones:vConexiones,historial:vHistorial,calidad:vCalidad,papelera:()=>papeleraBox(),mejoras:vMejoras}[t]();
+  return `<div class="head"><div><h1>Configuración</h1><p>Usuarios, metas, conexiones y herramientas del sistema.</p></div></div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="Sección">${tabs.map(([v,l])=>`<button data-act="cfgTab" data-v="${v}" aria-pressed="${t===v}">${l}</button>`).join("")}</div></div>
+  <div class="subview">${body}</div>`;
+}
+function objetivosBox(){
+  const o=obj();
+  return `<section class="panel"><h2>Objetivos</h2><div class="muted" style="font-size:13px">Las metas que usan el Panel, el Weekly y los indicadores.</div><div class="form">
     ${field("Facturación mensual (ARS)","o-fac",o.facturacionMensualARS,"number")}${field("Ticket promedio (ARS)","o-tic",o.ticketPromedioARS,"number")}
     ${field("Fee mínimo aceptado (ARS)","o-fee",o.feeMinimoARS,"number")}${field("Time to fill (días)","o-ttf",o.timeToFillDias,"number")}
     ${field("Búsquedas activas","o-ba",o.busquedasActivas,"number")}${field("Propuestas por mes","o-pr",o.propuestasMes,"number")}
     ${field("Clientes nuevos por mes","o-nc",o.nuevosClientesMes,"number")}</div>
-    <div><button class="btn primary" data-act="saveObjetivos">Guardar objetivos</button></div></section>
-  </div>
-  ${vUsuarios()}${papeleraBox()}`;
+    <div><button class="btn primary" data-act="saveObjetivos">Guardar objetivos</button></div></section>`;
+}
+// Editar equipo (recruiters, capacidad, comisión): desde la sección Equipo
+function drawerEquipo(){
+  const r=recruiters();
+  const body=`<div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Activa</th><th class="r">Capacidad</th><th class="r">Comisión %</th></tr></thead><tbody>
+    ${r.map((x,i)=>`<tr><td><input id="rec-n-${i}" type="text" value="${esc(x.nombre)}" style="width:100%"></td><td><input id="rec-a-${i}" type="checkbox"${x.activa?" checked":""} aria-label="Activa"></td><td class="r"><input id="rec-c-${i}" type="number" value="${x.capacidad??4}" style="width:80px"></td><td class="r"><input id="rec-p-${i}" type="number" value="${x.comisionPct??0}" style="width:80px"></td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="toolbar"><button class="btn sm" data-act="addRec">Agregar recruiter</button><button class="btn primary" data-act="saveEquipo" data-n="${r.length}">Guardar equipo</button></div>
+    <div class="note">La capacidad es la cantidad de búsquedas simultáneas que puede llevar cada recruiter. La comisión se propone sola al cargar una factura. El nombre tiene que coincidir con el de su usuario para que vea su panel.</div>`;
+  openDrawer("Editar equipo","Recruiters, capacidad y comisión",body,{});
 }
 
 // ================= DRAWER =================
@@ -1170,6 +1181,8 @@ document.addEventListener("click",async e=>{
       break; }
     case "undo": { const f=undoFn; undoFn=null; $("#toastHost").innerHTML=""; if(f) await f(); break; }
     case "gMes": UI.gMes=v; render(); break;
+    case "cfgTab": UI.cfgTab=v; history.replaceState(null,"","#config/"+v); abrirTabConfig(); render(); break;
+    case "editEquipo": drawerEquipo(); break;
     case "openRecruiter": location.hash="#recruiter/"+encodeURIComponent(id); break;
     case "recPer": UI.recPer=v; render(); break;
     case "recB": UI.recB=v; render(); break;
@@ -1213,10 +1226,10 @@ document.addEventListener("click",async e=>{
     case "logout": await fetch("/api/logout",{method:"POST"}); location.reload(); break;
     case "minAdd": { const u=gv("min-u"); if(!u){toast("Pegá el link de Granola.",true);break;} flushMin(); $("#min-u").value=""; $("#min-t").value=""; $("#min-list").innerHTML=minList(); toast("Minuta agregada: guardá para confirmar"); break; }
     case "minRemove": { pendingMin.splice(+t.dataset.i,1); $("#min-list").innerHTML=minList(); break; }
-    case "addRec": { const eq={...(S.equipo||{}),recruiters:[...recruiters(),{nombre:"Nueva recruiter",activa:true,capacidad:4,comisionPct:20}]}; delete eq.id; if(await write("equipo/config",eq)) toast("Recruiter agregada: editá el nombre"); break; }
+    case "addRec": { const eq={...(S.equipo||{}),recruiters:[...recruiters(),{nombre:"Nueva recruiter",activa:true,capacidad:4,comisionPct:20}]}; delete eq.id; if(await write("equipo/config",eq)){ toast("Recruiter agregada: editá el nombre"); if($("#overlay .drawer")) drawerEquipo(); } break; }
     case "saveEquipo": { const n=+t.dataset.n; const list=[]; for(let i=0;i<n;i++){ const nm=gv("rec-n-"+i); if(nm) list.push({nombre:nm,activa:gv("rec-a-"+i),capacidad:gn("rec-c-"+i)||4,comisionPct:gn("rec-p-"+i)||0}); }
       const prevR=(S.equipo&&S.equipo.recruiters)||[]; for(let i=0;i<Math.min(prevR.length,n);i++){ const o=prevR[i]&&prevR[i].nombre, nn=gv("rec-n-"+i); if(o&&nn&&o!==nn){ try{ await api("/api/equipo/renombrar",{method:"POST",body:JSON.stringify({de:o,a:nn})}); }catch(e){} } }
-      const eq={...(S.equipo||{}),recruiters:list}; delete eq.id; if(await write("equipo/config",eq)){ toast("Equipo guardado"); refresh("busquedas"); refresh("facturas"); } break; }
+      const eq={...(S.equipo||{}),recruiters:list}; delete eq.id; if(await write("equipo/config",eq)){ toast("Equipo guardado"); closeDrawer(); refresh("busquedas"); refresh("facturas"); } break; }
     case "saveObjetivos": { const o={facturacionMensualARS:gn("o-fac"),ticketPromedioARS:gn("o-tic"),feeMinimoARS:gn("o-fee"),timeToFillDias:gn("o-ttf"),busquedasActivas:gn("o-ba"),propuestasMes:gn("o-pr"),nuevosClientesMes:gn("o-nc")};
       if(await write("objetivos/config",o)) toast("Objetivos guardados"); break; }
   }
@@ -1231,7 +1244,9 @@ document.addEventListener("change",async e=>{
 });
 document.addEventListener("input",e=>{ const el=e.target; if(el.dataset.ui && el.tagName==="INPUT"){ UI[el.dataset.ui]=el.value; clearTimeout(window.__qt); window.__qt=setTimeout(render,180); } });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("#overlay .drawer")) closeDrawer(); });
-function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); if(h.startsWith("recruiter/")) UI.recNom=decodeURIComponent(h.slice(10)); view=h==="scorecard"?"weekly":h.startsWith("busqueda/")?"ficha":h.startsWith("recruiter/")?"recruiter":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="conexiones") refresh("conexiones"); if(view==="ajustes") cargarPapelera(); if(view==="historial") S.historial=null; }
+function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); if(h.startsWith("recruiter/")) UI.recNom=decodeURIComponent(h.slice(10)); const alias={ajustes:"usuarios",historial:"historial",calidad:"calidad",conexiones:"conexiones",mejoras:"mejoras"};
+  if(alias[h]) UI.cfgTab=alias[h]; if(h.startsWith("config/")) UI.cfgTab=h.slice(7);
+  view=h==="scorecard"?"weekly":h.startsWith("busqueda/")?"ficha":h.startsWith("recruiter/")?"recruiter":(alias[h]||h==="config"||h.startsWith("config/"))?"config":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="config") abrirTabConfig(); }
 window.addEventListener("hashchange",route);
 
 // ---------- login ----------
@@ -1293,7 +1308,7 @@ function vMejoras(){
   else if(UI.fbEstado!=="Todos") list=list.filter(f=>f.estado===UI.fbEstado);
   const pr={Alta:0,Media:1,Baja:2};
   list=sortBy(list,f=>`${pr[f.prioridad]??1}-${9999-(+String(f.fecha||"0").replace(/-/g,"").slice(0,8)||0)}`);
-  const lab=Object.fromEntries(VIEWS.filter(v=>v.id).map(v=>[v.id,labOf(v)]));
+  const lab={ajustes:"Equipo y accesos",historial:"Historial de cambios",calidad:"Calidad de datos",conexiones:"Conexiones",mejoras:"Pedidos de mejora",...Object.fromEntries(VIEWS.filter(v=>v.id).map(v=>[v.id,labOf(v)]))};
   let h=`<div class="head"><div><h1>Pedidos de mejora</h1><p>Lo que el equipo pide cambiar del sistema. Cada pedido tiene estado y respuesta, así se ve qué se hizo.</p></div><button class="btn lemon" data-act="newFeedback">Sugerir mejora</button></div>
   <div class="toolbar"><div class="seg" role="group">${["Abiertos","Hecho","Descartado","Todos"].map(e=>`<button data-act="fbEstado" data-v="${e}" aria-pressed="${UI.fbEstado===e}">${e}</button>`).join("")}</div></div>`;
   if(!list.length) return h+`<div class="empty">No hay pedidos en esta vista. Usá “Sugerir mejora” desde cualquier pantalla.</div>`;
@@ -1304,7 +1319,7 @@ function vMejoras(){
   return h;
 }
 function drawerFeedback(id){
-  const f=id?S.feedback[id]:{seccion:view==="mejoras"?"panel":view,tipo:"Mejora",prioridad:"Media",estado:"Pendiente"};
+  const f=id?S.feedback[id]:{seccion:view==="config"?"config":view,tipo:"Mejora",prioridad:"Media",estado:"Pendiente"};
   if(!f) return;
   const body=`<div class="form">${farea("¿Qué querés que cambie o qué no funciona?","fb-t",f.texto)}
     ${fsel("Pantalla","fb-s",SECCIONES(),f.seccion)}${fsel("Tipo","fb-ti",TIPOS_FB,f.tipo)}
