@@ -83,7 +83,7 @@ select{padding-right:6px}
 
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}
-.kpi .v{white-space:nowrap;overflow-wrap:normal;font:600 clamp(18px,5vw,26px) var(--f-data);font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.1}
+.kpi .v{white-space:nowrap;overflow-wrap:normal;overflow:hidden;text-overflow:ellipsis;font:600 clamp(18px,5vw,26px) var(--f-data);font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.1}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;padding:4px 10px;border-radius:14px;background:var(--sunken);color:var(--muted);border:1px solid transparent;font-family:inherit}
 .chip b{color:var(--ink);font-family:var(--f-data);font-weight:500}
 button.chip{cursor:pointer} button.chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink)}

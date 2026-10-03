@@ -517,9 +517,12 @@ function vRecruiter(){
   h+=`<section class="panel"><div class="panel-head"><h2>Comisiones</h2><span class="muted">pendientes y pagadas en el período</span></div>`;
   if(!com) h+=`<div class="muted">Cargando…</div>`;
   else{
-    h+=`<div class="kpis">${kpi("Pendientes de pago",sumMon(pend),`${pend.length} ${pend.length===1?"factura":"facturas"}`)}${kpi("Pagadas",sumMon(pag),`${pag.length} en ${r.lab.toLowerCase()}`)}</div>`;
+    // Una tarjeta por moneda: pesos y dólares no se suman ni se amontonan en una línea
+    const mon=(l,m)=>l.filter(f=>(f.monedaComision==="USD")===(m==="USD")), tot=l=>l.reduce((s,f)=>s+(f.comision||0),0), cant=l=>`${l.length} ${l.length===1?"factura":"facturas"}`;
+    const cards=[["Pendiente en pesos",mon(pend,"ARS"),ars],["Pendiente en dólares",mon(pend,"USD"),usd],["Pagado en pesos",mon(pag,"ARS"),ars],["Pagado en dólares",mon(pag,"USD"),usd]].filter(([,l],i)=>l.length||i===0||i===2);
+    h+=`<div class="kpis">${cards.map(([t,l,f])=>kpi(t,f(tot(l)),t.startsWith("Pagado")?`${cant(l)} · ${r.lab.toLowerCase()}`:cant(l))).join("")}</div>`;
     const lista=sortBy([...pend,...pag],f=>`${f.comisionPagada?1:0}${f.fechaEmision||""}`);
-    h+=lista.length?`<div class="list">${lista.slice(0,40).map(f=>`<div class="row${canFin?" click":""}"${canFin?` data-act="openFactura" data-id="${f.id}"`:""}><div class="grow" style="min-width:0"><b>${esc(f.cliente||"")}</b><div class="muted" style="font-size:12px">${esc(f.concepto||"")} · emitida ${fd(f.fechaEmision)}</div></div><div style="text-align:right"><div class="num">${money(f.comision,f.monedaComision)}</div>${f.comisionPagada?`<span class="pill ok">Pagada${f.fechaPagoComision?" "+fd(f.fechaPagoComision):""}</span>`:'<span class="pill warn">Pendiente</span>'}</div></div>`).join("")}</div>`:`<div class="muted">No hay comisiones en el período.</div>`;
+    h+=lista.length?`<div class="list">${lista.slice(0,40).map(f=>`<div class="row${canFin?" click":""}"${canFin?` data-act="openFactura" data-id="${f.id}"`:""}><div class="grow" style="min-width:0"><b>${esc(f.cliente||"")}</b><div class="muted" style="font-size:12px">${esc(f.concepto||"")}${f.fechaEmision?` · emitida ${fd(f.fechaEmision)}`:" · sin fecha de emisión"}</div></div><div style="text-align:right;flex:none"><div class="num">${money(f.comision,f.monedaComision)}</div>${f.comisionPagada?`<span class="pill ok">Pagada${f.fechaPagoComision?" "+fd(f.fechaPagoComision):""}</span>`:'<span class="pill warn">Pendiente</span>'}</div></div>`).join("")}</div>`:`<div class="muted">No hay comisiones en el período.</div>`;
   }
   h+=`</section>`;
   // Búsquedas
