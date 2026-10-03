@@ -495,7 +495,7 @@ function vRecruiter(){
   const comR=com?com.filter(f=>enR(f.fechaEmision,r)||(!f.comisionPagada)):[];
   const pend=comR.filter(f=>!f.comisionPagada), pag=comR.filter(f=>f.comisionPagada);
   const fact=canFin?vals(S.facturas).filter(f=>esDe(f,n)&&enR(f.fechaEmision,r)):[];
-  let h=`<div class="head"><div>${canFin?`<a href="#recruiters" class="muted" style="font-size:13px">← Equipo</a>`:""}<h1>${esc(n)}</h1><p class="keep">${st.act.length} ${st.act.length===1?"búsqueda activa":"búsquedas activas"}${st.cap?` de ${st.cap} de capacidad`:""} · ${r.lab}</p></div>${selPer()}</div>`;
+  let h=`<div class="head"><div>${canFin?`<a href="#recruiters" class="muted" style="font-size:13px">← Equipo</a>`:""}<h1>${esc(n)}</h1><p class="keep">${st.act.length} activas${st.cap?` de ${st.cap} de capacidad`:""}${canFin?(()=>{ const x=recruiters().find(y=>keyN(y.nombre)===keyN(n)); return x?` · comisión ${x.comisionPct??0}%${x.activa===false?" · inactiva":""}`:""; })():""}</p></div><div class="toolbar">${selPer()}${canFin?`<button class="btn sm" data-act="editRec" data-v="${esc(n)}">Editar</button>`:""}</div></div>`;
   if(st.riesgo.length) h+=`<div class="panel cal crit"><b>${st.riesgo.length} ${st.riesgo.length===1?"búsqueda en riesgo":"búsquedas en riesgo"}</b><span>${st.riesgo.map(b=>`<a href="#busqueda/${encodeURIComponent(b.id)}">${esc(b.puesto)} · ${esc(b.cliente)}</a>`).join(" · ")}</span></div>`;
   h+=`<div class="kpis">${kpi("Activas",st.act.length,st.cap?`capacidad ${st.cap}`:"",st.cap?st.act.length/st.cap:null)}${kpi("Iniciadas",st.ini.length,r.lab)}${kpi("Cerradas",st.cerr.length,`${st.canc.length} canceladas · éxito ${pct(st.exito)}`)}${kpi("Time to fill",fmtD(st.ttfA),`equipo ${fmtD(ttfEq)} · objetivo ${o.timeToFillDias} d`)}${kpi("Primera terna",fmtD(st.terna),"promedio desde el inicio")}${kpi("Presentados por búsqueda",st.pres==null?"—":nf1.format(st.pres),"candidatos que llegaron al cliente")}${canFin?kpi("Facturación generada",usd(fact.reduce((s,f)=>s+fcUSD(f),0)),`${fact.length} facturas`):""}</div>`;
   // Tendencia mensual
@@ -776,6 +776,22 @@ function objetivosBox(){
     ${field("Búsquedas activas","o-ba",o.busquedasActivas,"number")}${field("Propuestas por mes","o-pr",o.propuestasMes,"number")}
     ${field("Clientes nuevos por mes","o-nc",o.nuevosClientesMes,"number")}</div>
     <div><button class="btn primary" data-act="saveObjetivos">Guardar objetivos</button></div></section>`;
+}
+// Editar una recruiter desde su perfil (solo socios y Administradora: la config de equipo se escribe con rol admin)
+function drawerRec(n){
+  const lista=recruiters(), i=lista.findIndex(x=>keyN(x.nombre)===keyN(n));
+  const x=i>=0?lista[i]:{nombre:n,activa:true,capacidad:4,comisionPct:20};
+  const body=`<div class="form">${field("Capacidad (búsquedas simultáneas)","er-cap",x.capacidad??4,"number")}${field("Comisión %","er-com",x.comisionPct??0,"number")}
+    <label class="check full"><input id="er-act" type="checkbox"${x.activa!==false?" checked":""}> Activa</label></div>
+    <div class="note">La comisión se propone sola al cargar una factura de sus búsquedas. Para cambiar el nombre usá Equipo › Editar equipo.</div>`;
+  openDrawer("Editar a "+x.nombre,"Capacidad y comisión",body,{save:{label:"Guardar"}});
+  drawerSave.save.fn=async()=>{
+    const cap=gn("er-cap"), com=gn("er-com"); if(cap==null||cap<0||com==null||com<0||com>100){ toast("Revisá capacidad y comisión (entre 0 y 100%).",true); return; }
+    const nueva={...x,capacidad:cap,comisionPct:com,activa:gv("er-act")};
+    const recs=i>=0?lista.map((y,j)=>j===i?nueva:y):[...lista,nueva];
+    const eq={...(S.equipo||{}),recruiters:recs}; delete eq.id;
+    if(await write("equipo/config",eq)){ toast("Recruiter actualizada"); closeDrawer(); }
+  };
 }
 // Editar equipo (recruiters, capacidad, comisión): desde la sección Equipo
 function drawerEquipo(){
@@ -1187,6 +1203,7 @@ document.addEventListener("click",async e=>{
     case "scDet": drawerMetrica(v); break;
     case "cfgTab": UI.cfgTab=v; history.replaceState(null,"","#config/"+v); abrirTabConfig(); render(); break;
     case "editEquipo": drawerEquipo(); break;
+    case "editRec": if(canFin) drawerRec(v); break;
     case "openRecruiter": location.hash="#recruiter/"+encodeURIComponent(id); break;
     case "recPer": UI.recPer=v; render(); break;
     case "recB": UI.recB=v; render(); break;
@@ -1381,7 +1398,7 @@ function vPropuestas(){
   if(UI.pFuente) list=list.filter(p=>p.fuente===UI.pFuente);
   list=sortBy(list,p=>p.fecha||p.creado||"",-1);
   const dg=S.digest; const ult=dg&&dg.actualizado? new Date(dg.actualizado).toLocaleString("es-AR",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : null;
-  let h=`<div class="head"><div><h1>Bandeja de propuestas</h1><p class="keep">Lo que el sistema detectó en mails, calendarios, Granola y chats. Nada se guarda hasta que lo aprobás.${ult?` · Última lectura: ${esc(ult)}`:" · Todavía no corrió ninguna lectura."}</p></div></div>
+  let h=`<div class="head"><div><h1>Bandeja de propuestas</h1><p>Lo que el sistema detectó en mails, calendarios, Granola y chats. Nada se guarda hasta que lo aprobás.${ult?` · Última lectura: ${esc(ult)}`:" · Todavía no corrió ninguna lectura."}</p></div></div>
   <div class="toolbar"><div class="seg" role="group" aria-label="Estado">${["Pendiente","Aprobada","Rechazada","Todas"].map(e=>`<button data-act="pEstado" data-v="${e}" aria-pressed="${UI.pEstado===e}">${e==="Pendiente"?"Pendientes":e==="Aprobada"?"Aprobadas":e==="Rechazada"?"Rechazadas":"Todas"} <span class="muted num">${e==="Todas"?all.length:all.filter(p=>p.estado===e).length}</span></button>`).join("")}</div>
   <select data-ui="pFuente" aria-label="Fuente"><option value="">Todas las fuentes</option>${opt(uniq(all.map(p=>p.fuente)).sort(),UI.pFuente)}</select></div>`;
   if(!list.length) return h+`<div class="empty">${UI.pEstado==="Pendiente"?"No hay novedades para revisar.":"No hay propuestas en esta vista."}</div>`;
