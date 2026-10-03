@@ -157,6 +157,10 @@ tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0}
 .row:last-child{border-bottom:0}
 .row .grow{min-width:0;flex:1}
 .row .grow div{overflow:hidden;text-overflow:ellipsis}
+.segcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.segcard-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.segcard-nums{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px}
+details.note summary{cursor:pointer;font-weight:600;color:var(--ink)}
 .mf{display:inline-flex;align-items:flex-end;gap:2px;height:24px;vertical-align:middle}
 .mf i{width:9px;background:var(--lemon);border-radius:2px 2px 0 0}.mf i.z{background:var(--line)}
 .bar{display:grid;grid-template-columns:150px minmax(0,1fr) 70px;align-items:center;gap:10px;font-size:13px}
@@ -214,6 +218,22 @@ tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0}
   main{padding-block:18px 56px;gap:18px}
   .head{align-items:flex-start}
   .head .toolbar{width:100%}
+  /* Menos texto y nada partido en dos líneas: descripciones ocultas, segmentados con scroll, filtros de a dos */
+  .head > div > p:not(.keep){display:none}
+  .head{gap:10px}
+  .seg{flex-wrap:nowrap;overflow-x:auto;max-width:100%;scrollbar-width:none}
+  .seg::-webkit-scrollbar{display:none}
+  .seg button{white-space:nowrap;flex:none}
+  .toolbar > select{flex:1 1 140px;min-width:0}
+  .toolbar > input[type=search]{flex:1 1 100%;min-width:0}
+  .head .toolbar > span{flex:1 1 100%}
+  .head .toolbar .btn{padding:7px 12px;font-size:13.5px}
+  .note{font-size:13px}
+  .solo-desk{display:none}
+  td.num,td.r,th{white-space:nowrap}
+  th,td{padding:8px 10px}
+  .tablewrap input[type=text]{min-width:130px}
+  .tablewrap input[type=number]{min-width:72px}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .kpi{padding:12px}
   .kpi .v{font-size:clamp(17px,5.2vw,22px)}
@@ -228,6 +248,7 @@ tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0}
   h1{font-size:24px}
   h2{font-size:17px}
 }
+@media (min-width:821px){.solo-mob{display:none!important}}
 @media (prefers-reduced-motion:no-preference){.drawer{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
 
 [hidden]{display:none!important}

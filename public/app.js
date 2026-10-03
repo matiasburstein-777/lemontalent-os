@@ -35,8 +35,9 @@ const money = (v,m) => m==="USD" ? usd(v) : ars(v);
 const short = v => { if(v==null||isNaN(v)) return "—"; const a=Math.abs(v); return a>=1e6 ? nf1.format(v/1e6)+" M" : a>=1e3 ? nf1.format(v/1e3)+" k" : nf0.format(v); };
 const pct = v => v==null||!isFinite(v) ? "—" : nf0.format(v*100)+"%";
 const MES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-const fd = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${+d} ${MES[+m-1]} ${y.slice(2)}`; };
-const fm = k => { const [y,m]=k.split("-"); return `${MES[+m-1]} ${y.slice(2)}`; };
+// Espacios no separables: una fecha nunca se parte en dos líneas
+const fd = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${+d}\u00a0${MES[+m-1]}\u00a0${y.slice(2)}`; };
+const fm = k => { const [y,m]=k.split("-"); return `${MES[+m-1]}\u00a0${y.slice(2)}`; };
 const days = (a,b=today()) => (!a) ? null : Math.round((new Date(b)-new Date(a))/864e5);
 const finGar = f => { const [y,m,d]=f.split("-").map(Number); const t=new Date(Date.UTC(y,m+2,1)); t.setUTCDate(Math.min(d,new Date(Date.UTC(y,m+3,0)).getUTCDate())); return t.toISOString().slice(0,10); }; // garantía: 3 meses desde el ingreso
 const addDays = (iso,n) => { const d=new Date(iso); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
@@ -355,8 +356,13 @@ function miniFunnel(ps){
 }
 function tablaSeguimiento(list){
   const rows=sortBy(list.map(b=>({b,sa:salud(b),ps:postsOf(b.id)})),r=>`${SALUD_ORD[r.sa.nivel]}${String(999-(days(r.b.fechaInicio)||0)).padStart(4,"0")}`);
-  return `<div class="note">Semáforo: <b>en riesgo</b> si no hay movimiento hace más de 7 días, no se presentó terna a los 21 días o no quedan candidatos vivos · <b>atención</b> si no hay movimiento hace más de 4 días o quedan menos de 3 candidatos vivos. El funnel en miniatura muestra cuántos llegaron a cada etapa (Sourcing → Contratado).</div>
-  <div class="tablewrap"><table><thead><tr><th>Semáforo</th><th>Búsqueda</th><th>Recruiter</th><th class="r">Días</th><th>Funnel</th><th class="r">Vivos</th><th class="r">Presentados</th><th>Último movimiento</th><th>Próximo paso</th></tr></thead><tbody>
+  const tarjetas=`<div class="list solo-mob">${rows.map(({b,sa,ps})=>`<div class="segcard click" data-act="openBusqueda" data-id="${b.id}">
+    <div class="segcard-top"><div style="min-width:0"><b>${esc(b.puesto)}</b><div class="muted">${esc(b.cliente)} · ${esc(b.recruiter||"—")}</div></div>${pillSalud(sa)||pillEstado(b.estado)}</div>
+    ${sa.motivos.length?`<div class="muted" style="font-size:12.5px">${esc(sa.motivos.join(" · "))}</div>`:""}
+    <div class="segcard-nums">${ps.length?miniFunnel(ps):""}<span><b class="num">${(b.estado==="Activa"?days(b.fechaInicio):ttf(b))??"—"}</b> días</span><span><b class="num">${ps.filter(p=>p.etapa!=="Descartado").length}</b> vivos</span><span><b class="num">${ps.filter(p=>alcance(p)>=3).length}</b> present.</span><span class="muted">${hace(days(ultimoMov(b,ps)))}</span></div>
+    ${b.proximoPaso?`<div style="font-size:13px"><span class="muted">Próximo paso:</span> ${esc(b.proximoPaso)}</div>`:""}</div>`).join("")}</div>`;
+  return tarjetas+`<details class="note"><summary>¿Cómo se calcula el semáforo?</summary>Semáforo: <b>en riesgo</b> si no hay movimiento hace más de 7 días, no se presentó terna a los 21 días o no quedan candidatos vivos · <b>atención</b> si no hay movimiento hace más de 4 días o quedan menos de 3 candidatos vivos. El funnel en miniatura muestra cuántos llegaron a cada etapa (Sourcing → Contratado).</details>
+  <div class="tablewrap solo-desk"><table><thead><tr><th>Semáforo</th><th>Búsqueda</th><th>Recruiter</th><th class="r">Días</th><th>Funnel</th><th class="r">Vivos</th><th class="r">Presentados</th><th>Último movimiento</th><th>Próximo paso</th></tr></thead><tbody>
   ${rows.map(({b,sa,ps})=>{ const sm=days(ultimoMov(b,ps));
     return `<tr class="click" data-act="openBusqueda" data-id="${b.id}"><td>${pillSalud(sa)||pillEstado(b.estado)}${sa.motivos.length?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(sa.motivos.join(" · "))}</div>`:""}</td>
     <td><b>${esc(b.puesto)}</b><div class="muted">${esc(b.cliente)}</div></td><td>${esc(b.recruiter||"—")}</td><td class="r num">${(b.estado==="Activa"?days(b.fechaInicio):ttf(b))??"—"}</td>
@@ -387,7 +393,7 @@ function vFicha(){
   const dTerna=b.fechaPrimeraTerna&&b.fechaInicio?days(b.fechaInicio,b.fechaPrimeraTerna):null;
   const ti=tiemposEtapa(ps), de=descartes(ps);
   let h=`<div class="head"><div><a href="#busquedas" class="muted" style="font-size:13px">← Búsquedas</a><h1>${esc(b.puesto)}</h1>
-    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${esc(b.cliente)} · ${esc(b.recruiter||"Sin recruiter")}${b.prioridad?` · Prioridad ${esc(b.prioridad)}`:""} ${pillEstado(b.estado)} ${pillSalud(sa)}</p></div>
+    <p class="keep" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${esc(b.cliente)} · ${esc(b.recruiter||"Sin recruiter")}${b.prioridad?` · Prioridad ${esc(b.prioridad)}`:""} ${pillEstado(b.estado)} ${pillSalud(sa)}</p></div>
     <div class="toolbar"><button class="btn" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button><button class="btn" data-act="addPost" data-id="${b.id}">Sumar candidato</button><button class="btn" data-act="editBusqueda" data-id="${b.id}">Editar</button><button class="btn" data-act="repCliente" data-id="${b.id}">Reporte PDF</button><button class="btn lemon" data-act="linkCliente" data-id="${b.id}">Link para el cliente</button></div></div>`;
   if(sa.motivos.length) h+=`<div class="panel cal ${sa.nivel}"><b>${SALUD_LAB[sa.nivel]}</b><span>${esc(sa.motivos.map(m=>m[0].toUpperCase()+m.slice(1)).join(" · "))}.</span></div>`;
   h+=`<div class="kpis">${kpi(b.estado==="Activa"?"Días en curso":"Duración",d??"—",b.fechaInicio?`inicio ${fd(b.fechaInicio)}`:"")}${kpi("Candidatos",ps.length,`${vivos.length} vivos · ${de.n} descartados`)}${kpi("Presentados al cliente",pres.length,`primera terna: ${terna}${dTerna!=null?` (día ${dTerna})`:""}`)}${kpi("Último movimiento",hace(sm),ultimoMov(b,ps)?fd(ultimoMov(b,ps)):"")}</div>`;
@@ -1160,7 +1166,7 @@ function vPropuestas(){
   if(UI.pFuente) list=list.filter(p=>p.fuente===UI.pFuente);
   list=sortBy(list,p=>p.fecha||p.creado||"",-1);
   const dg=S.digest; const ult=dg&&dg.actualizado? new Date(dg.actualizado).toLocaleString("es-AR",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : null;
-  let h=`<div class="head"><div><h1>Bandeja de propuestas</h1><p>Lo que el sistema detectó en mails, calendarios, Granola y chats. Nada se guarda hasta que lo aprobás.${ult?` · Última lectura: ${esc(ult)}`:" · Todavía no corrió ninguna lectura."}</p></div></div>
+  let h=`<div class="head"><div><h1>Bandeja de propuestas</h1><p class="keep">Lo que el sistema detectó en mails, calendarios, Granola y chats. Nada se guarda hasta que lo aprobás.${ult?` · Última lectura: ${esc(ult)}`:" · Todavía no corrió ninguna lectura."}</p></div></div>
   <div class="toolbar"><div class="seg" role="group" aria-label="Estado">${["Pendiente","Aprobada","Rechazada","Todas"].map(e=>`<button data-act="pEstado" data-v="${e}" aria-pressed="${UI.pEstado===e}">${e==="Pendiente"?"Pendientes":e==="Aprobada"?"Aprobadas":e==="Rechazada"?"Rechazadas":"Todas"} <span class="muted num">${e==="Todas"?all.length:all.filter(p=>p.estado===e).length}</span></button>`).join("")}</div>
   <select data-ui="pFuente" aria-label="Fuente"><option value="">Todas las fuentes</option>${opt(uniq(all.map(p=>p.fuente)).sort(),UI.pFuente)}</select></div>`;
   if(!list.length) return h+`<div class="empty">${UI.pEstado==="Pendiente"?"No hay novedades para revisar.":"No hay propuestas en esta vista."}</div>`;
