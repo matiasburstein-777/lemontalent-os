@@ -155,10 +155,9 @@ function clienteStats(){
 
 // ---------- rendering shell ----------
 const VIEWS = [
-  {sep:"Hoy"},
-  {id:"panel",label:"Panel"},
+  {sep:"Día a día"},
+  {id:"panel",label:"Inicio"},
   {id:"propuestas",label:"Bandeja de propuestas",admin:true,cnt:()=>vals(S.propuestas).filter(p=>p.estado==="Pendiente").length},
-  {id:"weekly",label:"Weekly"},
   {sep:"Operación"},
   {id:"busquedas",label:"Búsquedas",cnt:()=>activas().length},
   {id:"candidatos",label:"Candidatos",cnt:()=>vals(S.candidatos).length},
@@ -181,7 +180,7 @@ function render(){
   renderNav();
   const m=$("#main");
   if((["crm","cobros","economics","propuestas"].includes(view)) && !canFin){ view="panel"; }
-  const fn = {config:vConfig,recruiters:vRecruiters,recruiter:vRecruiter,ficha:vFicha,panel:vPanel,busquedas:vBusquedas,candidatos:vCandidatos,crm:vCrm,cobros:vCobros,economics:vEconomics,mejoras:vMejoras,propuestas:vPropuestas,conexiones:vConexiones,weekly:vWeekly,historial:vHistorial,calidad:vCalidad}[view] || vPanel;
+  const fn = {panel:vInicio,weekly:vInicio,config:vConfig,recruiters:vRecruiters,recruiter:vRecruiter,ficha:vFicha,busquedas:vBusquedas,candidatos:vCandidatos,crm:vCrm,cobros:vCobros,economics:vEconomics,mejoras:vMejoras,propuestas:vPropuestas,conexiones:vConexiones,historial:vHistorial,calidad:vCalidad}[view] || vInicio;
   const sx=window.scrollX, sy=window.scrollY;
   const active=document.activeElement; const aid=active&&active.id; const sel=aid&&active.selectionStart;
   m.innerHTML = fn();
@@ -231,8 +230,7 @@ function vPanel(){
   const capTot=recs.reduce((s,r)=>s+(+r.capacidad||0),0);
   const pausa=B().filter(b=>b.estado==="En pausa").length;
   const sinAv=act.filter(b=>(days(lastTouch(b))??99)>7);
-  let h=`<div class="head"><div><h1>Panel</h1><p>${fd(today())} · lo que hay que mirar hoy. Los números de la semana y del mes están en <a href="#weekly" data-act="wkTab" data-v="resumen">Weekly › Resumen</a>.</p></div>
-    <div class="toolbar">${canFin?`<button class="btn" data-act="repMensual">Reporte mensual</button>`:""}<button class="btn lemon" data-act="newBusqueda">Nueva búsqueda</button></div></div>` + propBanner();
+  let h=propBanner();
   let k=`${kpi("Búsquedas activas",act.length,`capacidad del equipo ${capTot} · objetivo ${o.busquedasActivas}${pausa?` · ${pausa} en pausa`:""}`,capTot?act.length/capTot:null)}
     ${kpi("Sin actualizar",sinAv.length,sinAv.length?"activas sin novedades hace más de 7 días":"todas las activas están al día")}`;
   if(canFin){
@@ -1206,7 +1204,7 @@ document.addEventListener("click",async e=>{
     case "saveUser": try{ await api("/api/users/"+id,{method:"PATCH",body:JSON.stringify(isAdmin?{rol:gv("u-r-"+id),activo:gv("u-a-"+id)}:{activo:gv("u-a-"+id)})}); toast("Usuario actualizado"); refresh("users"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo guardar.",true); } break;
     case "pEstado": UI.pEstado=v; render(); break;
     case "scPer": UI.scPer=v; UI.scOff=0; UI.mesOff=0; render(); break;
-    case "wkTab": UI.wkTab=v; if(view!=="weekly"){ location.hash="#weekly"; } else render(); break;
+    case "wkTab": case "iniTab": UI.iniTab=v; if(v!=="hoy") UI.wkTab=v; if(view!=="panel"){ location.hash="#panel"; } else render(); break;
     case "mesNav": UI.mesOff= +v===0?0:Math.max(0,(UI.mesOff||0)+(+v)); render(); break;
     case "wkSoloSin": UI.wkSoloSin=!UI.wkSoloSin; render(); break;
     case "attG": UI.attG=v; render(); break;
@@ -1248,10 +1246,10 @@ document.addEventListener("change",async e=>{
 });
 document.addEventListener("input",e=>{ const el=e.target; if(el.dataset.ui && el.tagName==="INPUT"){ UI[el.dataset.ui]=el.value; clearTimeout(window.__qt); window.__qt=setTimeout(render,180); } });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("#overlay .drawer")) closeDrawer(); });
-function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); if(h.startsWith("recruiter/")) UI.recNom=decodeURIComponent(h.slice(10)); if(h==="economics"){ UI.fTab="resultados"; history.replaceState(null,"","#cobros"); }
+function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"||h==="weekly"){ UI.iniTab=h==="scorecard"?"resumen":(canFin?(UI.wkTab||"resumen"):"busquedas"); history.replaceState(null,"","#panel"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); if(h.startsWith("recruiter/")) UI.recNom=decodeURIComponent(h.slice(10)); if(h==="economics"){ UI.fTab="resultados"; history.replaceState(null,"","#cobros"); }
   const alias={ajustes:"usuarios",historial:"historial",calidad:"calidad",conexiones:"conexiones",mejoras:"mejoras"};
   if(alias[h]) UI.cfgTab=alias[h]; if(h.startsWith("config/")) UI.cfgTab=h.slice(7);
-  view=h==="economics"?"cobros":h==="scorecard"?"weekly":h.startsWith("busqueda/")?"ficha":h.startsWith("recruiter/")?"recruiter":(alias[h]||h==="config"||h.startsWith("config/"))?"config":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="config") abrirTabConfig(); }
+  view=h==="economics"?"cobros":(h==="scorecard"||h==="weekly")?"panel":h.startsWith("busqueda/")?"ficha":h.startsWith("recruiter/")?"recruiter":(alias[h]||h==="config"||h.startsWith("config/"))?"config":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="config") abrirTabConfig(); }
 window.addEventListener("hashchange",route);
 
 // ---------- login ----------
@@ -1465,19 +1463,28 @@ function wkData(){
   const presentados=vals(S.postulaciones).filter(p=>inRange(p.fecha,r)&&["Presentado","Entrevista cliente","Oferta","Contratado"].includes(p.etapa));
   return {r,activasSem,nuevas,cerradas,canceladas,notas,presentados};
 }
+// ================= INICIO: Hoy + el weekly (Números, Búsquedas, Comercial) =================
+function vInicio(){
+  const D=wkData(), r=D.r;
+  const tabs=[["hoy","Hoy"],canFin&&["resumen","Números"],["busquedas",`Búsquedas <span class="muted num">${D.activasSem.filter(b=>b.estado!=="En pausa"&&(!b.fechaCierre||b.fechaCierre>r.e)).length}</span>`],canFin&&["comercial","Comercial"]].filter(Boolean);
+  if(!tabs.some(([v])=>v===UI.iniTab)) UI.iniTab="hoy";
+  const t=UI.iniTab;
+  let h=`<div class="head"><div><h1>Inicio</h1><p class="keep">${fd(today())} · ${t==="hoy"?"lo que hay que mirar hoy":"la reunión semanal: números, avance de cada búsqueda y comercial"}</p></div>
+    <div class="toolbar">${canFin?`<button class="btn" data-act="repMensual">Reporte mensual</button>`:""}<button class="btn lemon" data-act="newBusqueda">Nueva búsqueda</button></div></div>
+  <div class="toolbar"><div class="seg" role="tablist">${tabs.map(([v,l])=>`<button role="tab" data-act="iniTab" data-v="${v}" aria-pressed="${t===v}" aria-selected="${t===v}">${l}</button>`).join("")}</div></div>`;
+  if(t==="hoy") return h+vPanel();
+  UI.wkTab=t; return h+vWeekly();
+}
 function vWeekly(){
   const D=wkData(); const {r}=D; const esActual=r.s===weekStart();
-  if(!canFin) UI.wkTab="busquedas"; else UI.wkTab ||= "resumen";
+  if(!canFin) UI.wkTab="busquedas"; else if(!["resumen","busquedas","comercial"].includes(UI.wkTab)) UI.wkTab="resumen";
   const tab=UI.wkTab, mes=tab==="resumen"&&UI.scPer==="mes";
   let nav;
   if(mes){ const per=scPeriodos(); const k=per[per.length-1].k;
     nav=`<span class="muted">${fm(k)}${!(UI.mesOff||0)?" · mes actual":""}</span><button class="btn sm" data-act="mesNav" data-v="1" aria-label="Mes anterior">← Anterior</button>${UI.mesOff?`<button class="btn sm" data-act="mesNav" data-v="0">Este mes</button>`:""}<button class="btn sm" data-act="mesNav" data-v="-1" ${UI.mesOff?"":"disabled"} aria-label="Mes siguiente">Siguiente →</button>`; }
   else nav=`<span class="muted">${fd(r.s)} al ${fd(r.e)}${esActual?" · semana actual":""}</span><button class="btn sm" data-act="wkNav" data-v="-7" aria-label="Semana anterior">← Anterior</button>${esActual?"":`<button class="btn sm" data-act="wkNav" data-v="0">Esta semana</button>`}<button class="btn sm" data-act="wkNav" data-v="7" ${esActual?"disabled":""} aria-label="Semana siguiente">Siguiente →</button>`;
   const tabs=[canFin&&["resumen","Resumen"],["busquedas",`Búsquedas <span class="muted num">${D.activasSem.filter(b=>b.estado!=="En pausa"&&(!b.fechaCierre||b.fechaCierre>r.e)).length}</span>`],canFin&&["comercial","Comercial"]].filter(Boolean);
-  let h=`<div class="head"><div><h1>Weekly</h1><p>La reunión semanal en un lugar: los números, el avance de cada búsqueda y lo comercial.</p></div>
-    <div class="toolbar">${nav}</div></div>
-  <div class="toolbar wk-bar"><div class="seg tabs" role="tablist">${tabs.map(([id,l])=>`<button role="tab" data-act="wkTab" data-v="${id}" aria-pressed="${tab===id}" aria-selected="${tab===id}">${l}</button>`).join("")}</div>
-    <span class="grow"></span><button class="btn sm ghost" data-act="wkCopy">Copiar resumen</button><button class="btn sm ghost" data-act="wkPDF">PDF</button>${xbtn(tab==="resumen"?"scorecard":"weekly","Excel")}</div>`;
+  let h=`<div class="toolbar wk-bar">${nav}<span class="grow"></span><button class="btn sm ghost" data-act="wkCopy">Copiar resumen</button><button class="btn sm ghost" data-act="wkPDF">PDF</button>${xbtn(tab==="resumen"?"scorecard":"weekly","Excel")}</div>`;
   if(tab==="resumen") return h+wkResumen();
   if(tab==="comercial") return h+wkComercial(D);
   return h+wkBusquedas(D);
