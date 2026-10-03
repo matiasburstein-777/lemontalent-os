@@ -1,6 +1,6 @@
 // Modelo de datos de Lemon Talent OS (Drizzle ORM + PostgreSQL).
 // Fechas como 'YYYY-MM-DD' (mode string). Listas (bitácora, minutas, tags, gastos) en jsonb.
-import { pgTable, text, boolean, doublePrecision, date, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, doublePrecision, date, jsonb, timestamp, integer } from "drizzle-orm/pg-core";
 
 const d = (name) => date(name, { mode: "string" });
 
@@ -76,9 +76,25 @@ export const postulaciones = pgTable("postulaciones", {
   busquedaId: text("busqueda_id").notNull(),
   candidatoId: text("candidato_id").notNull(),
   etapa: text("etapa").notNull().default("Sourcing"),
-  motivo: text("motivo"),
+  motivo: text("motivo"), // motivo de descarte (lista fija)
+  motivoDetalle: text("motivo_detalle"),
   fecha: d("fecha"),
   notas: text("notas"),
+  etapas: jsonb("etapas").default([]), // [{etapa, fecha, autor, motivo}] lo arma el servidor en cada cambio de etapa
+});
+
+// Link privado de solo lectura para que el cliente vea el avance de su búsqueda (server/seguimiento.js)
+export const linksCliente = pgTable("links_cliente", {
+  token: text("token").primaryKey(),
+  busquedaId: text("busqueda_id").notNull(),
+  activo: boolean("activo").default(true),
+  resumen: text("resumen"),
+  proximos: text("proximos"),
+  mostrarCandidatos: boolean("mostrar_candidatos").default(true),
+  usuarioId: text("usuario_id"),
+  creado: timestamp("creado").defaultNow(),
+  vistas: integer("vistas").default(0),
+  ultimaVista: timestamp("ultima_vista"),
 });
 
 export const facturas = pgTable("facturas", {

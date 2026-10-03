@@ -14,6 +14,7 @@ import { registerExtras } from "./extras.js";
 import { registerComercial } from "./comercial.js";
 import { registerConsistencia } from "./consistencia.js";
 import { registerContratos } from "./contratos.js";
+import { registerSeguimiento, migrarSeguimiento, conEtapas } from "./seguimiento.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -147,6 +148,7 @@ const HX = registerExtras(app, { db, pool, S, auth, rank, RANK, R, newId });
 registerComercial(app, { pool, auth, HX });
 registerConsistencia(app, { pool, auth, HX });
 registerContratos(app, { pool, auth });
+registerSeguimiento(app, { pool, auth });
 
 // Costos unitarios por año, solo ratios (nunca totales): para socios y administradoras.
 app.get("/api/unit-costs", auth("admin"), async (req, res, next) => {
@@ -196,6 +198,7 @@ app.put("/api/:res/:id", auth(), async (req, res, next) => {
     const vals = clean(r.t, req.body || {}); delete vals[r.pk];
     if (req.params.res === "feedback" && !vals.autorId) vals.autorId = req.user.id;
     const antes = await HX.leer(r, req.params.id);
+    if (req.params.res === "postulaciones") conEtapas(vals, antes, req.user);
     const row = { ...vals, [r.pk]: req.params.id };
     const q = db.insert(r.t).values(row);
     await (Object.keys(vals).length ? q.onConflictDoUpdate({ target: cols[r.pk], set: vals }) : q.onConflictDoNothing());
@@ -208,8 +211,10 @@ app.patch("/api/:res/:id", auth(), async (req, res, next) => {
     const r = resource(req, res, true); if (!r) return;
     const cols = getTableColumns(r.t);
     const vals = clean(r.t, req.body || {}); delete vals[r.pk];
+    if (req.params.res === "postulaciones") delete vals.etapas;
     if (!Object.keys(vals).length) return res.json({ ok: true });
     const antes = await HX.leer(r, req.params.id);
+    if (req.params.res === "postulaciones" && antes) conEtapas(vals, antes, req.user);
     const out = await db.update(r.t).set(vals).where(eq(cols[r.pk], req.params.id)).returning();
     if (out.length) await HX.registrar(req.user, req.params.res, req.params.id, "editar", antes, vals);
     if (!out.length) return res.status(404).json({ error: "No existe ese registro." });
@@ -249,5 +254,6 @@ async function bootstrapAdmin() {
 }
 
 const PORT = process.env.PORT || 5000;
-bootstrapAdmin().catch((e) => console.error("No se pudo crear el usuario inicial:", e.message))
+migrarSeguimiento(pool).catch((e) => console.error("No se pudo preparar el seguimiento de etapas:", e.message))
+  .then(bootstrapAdmin).catch((e) => console.error("No se pudo crear el usuario inicial:", e.message))
   .finally(() => app.listen(PORT, "0.0.0.0", () => console.log(`Lemon Talent OS en puerto ${PORT}`)));

@@ -6,6 +6,7 @@ const ETAPAS_LEAD = ["Identificado","Contactado","En conversación","Propuesta e
 const ORIGENES_LEAD = ["Conocido","Referido de cliente","Referido","Cliente anterior","Inbound (nos escribió)","Evento","Prospección en frío"];
 const CANALES_LEAD = ["LinkedIn","WhatsApp","Mail","Llamada","Reunión","Evento"];
 const MOTIVOS_PERDIDA = ["No interesado","Sin búsquedas por ahora","Precio","Eligió a otro","Sin respuesta","Propuesta no avanzó"];
+const MOTIVOS_DESC = ["No califica","Pretensión salarial","Declinó el candidato","Rechazado por el cliente","No respondió","Aceptó otra oferta","Otro"];
 const TIPOS_FC = ["Inicio y avance","Cierre","50% anticipo","Cancelación"];
 const EMISORES = ["MATI","PAU","Invoice"];
 const PRIORIDADES = ["","1 (Alta)","2 (Media)","3 (Estable)"];
@@ -102,6 +103,25 @@ const postsOf = bid => vals(S.postulaciones).filter(p=>p.busquedaId===bid);
 const postsOfCand = cid => vals(S.postulaciones).filter(p=>p.candidatoId===cid);
 const lastTouch = b => { const l=(b.bitacora||[]).map(x=>x.fecha).sort().pop(); return [l,b.actualizado,b.fechaInicio].filter(Boolean).sort().pop(); };
 const ttf = b => (b.fechaInicio&&b.fechaCierre)? days(b.fechaInicio,b.fechaCierre) : null;
+// Etapas por las que pasó una postulación (el servidor las guarda en cada cambio; las viejas solo tienen la actual)
+const trayecto = p => (p.etapas&&p.etapas.length) ? p.etapas : [{etapa:p.etapa,fecha:p.fecha}];
+// Etapa más avanzada a la que llegó (índice en ETAPAS, sin contar Descartado): base del funnel real
+const alcance = p => Math.max(0,...[...trayecto(p),{etapa:p.etapa}].map(x=>ETAPAS.indexOf(x.etapa)).filter(i=>i>=0&&i<7));
+const ultimoMov = (b,ps=postsOf(b.id)) => [lastTouch(b),...ps.flatMap(p=>[p.fecha,...trayecto(p).map(x=>x.fecha)])].filter(Boolean).sort().pop();
+// Semáforo de una búsqueda activa. Las reglas de cantidad de candidatos esperan 7 días desde el inicio.
+function salud(b){
+  if(b.estado!=="Activa") return {nivel:"",motivos:[]};
+  const ps=postsOf(b.id), vivos=ps.filter(p=>p.etapa!=="Descartado").length, sm=days(ultimoMov(b,ps)), dIni=days(b.fechaInicio);
+  const terna=b.fechaPrimeraTerna||ps.some(p=>alcance(p)>=3), rojo=[], amar=[];
+  if(sm!=null&&sm>7) rojo.push(`sin movimiento hace ${sm} días`); else if(sm!=null&&sm>4) amar.push(`sin movimiento hace ${sm} días`);
+  if(!terna&&dIni!=null&&dIni>21) rojo.push(`sin terna a los ${dIni} días`);
+  if(dIni==null||dIni>7){ if(!vivos) rojo.push("sin candidatos vivos"); else if(vivos<3) amar.push(`solo ${vivos} candidato${vivos>1?"s":""} vivo${vivos>1?"s":""}`); }
+  return rojo.length?{nivel:"crit",motivos:[...rojo,...amar]}:amar.length?{nivel:"warn",motivos:amar}:{nivel:"ok",motivos:[]};
+}
+const SALUD_LAB = {crit:"En riesgo",warn:"Atención",ok:"En marcha"};
+const pillSalud = sa => sa.nivel ? `<span class="pill ${sa.nivel}" title="${esc(sa.motivos.join(" · ")||"Todo en orden")}">${SALUD_LAB[sa.nivel]}</span>` : "";
+const SALUD_ORD = {crit:0,warn:1,ok:2,"":3};
+const hace = d => d==null ? "—" : d<=0 ? "hoy" : `hace ${d} d`;
 function ageSev(d){ if(d==null) return ""; return d>60?"crit":d>35?"warn":"ok"; }
 function clientNames(){ return uniq([...vals(S.clientes).map(c=>c.nombre), ...B().map(b=>b.cliente)]).sort((a,b)=>a.localeCompare(b,"es")); }
 
@@ -151,7 +171,7 @@ function render(){
   renderNav();
   const m=$("#main");
   if((["crm","cobros","economics","ajustes","propuestas","calidad"].includes(view)) && !canFin){ view="panel"; }
-  const fn = {panel:vPanel,busquedas:vBusquedas,candidatos:vCandidatos,crm:vCrm,cobros:vCobros,economics:vEconomics,ajustes:vAjustes,mejoras:vMejoras,propuestas:vPropuestas,conexiones:vConexiones,weekly:vWeekly,historial:vHistorial,calidad:vCalidad}[view] || vPanel;
+  const fn = {ficha:vFicha,panel:vPanel,busquedas:vBusquedas,candidatos:vCandidatos,crm:vCrm,cobros:vCobros,economics:vEconomics,ajustes:vAjustes,mejoras:vMejoras,propuestas:vPropuestas,conexiones:vConexiones,weekly:vWeekly,historial:vHistorial,calidad:vCalidad}[view] || vPanel;
   const sx=window.scrollX, sy=window.scrollY;
   const active=document.activeElement; const aid=active&&active.id; const sel=aid&&active.selectionStart;
   m.innerHTML = fn();
@@ -262,11 +282,13 @@ function vBusquedas(){
     <select id="f-brec" data-ui="bRec" aria-label="Recruiter"><option value="">Todas las recruiters</option>${opt(recs,UI.bRec)}</select>
     <select id="f-bcli" data-ui="bCli" aria-label="Cliente"><option value="">Todos los clientes</option>${opt(uniq(B().map(b=>b.cliente)).sort((a,b)=>a.localeCompare(b,"es")),UI.bCli)}</select>
     <input id="q-b" type="search" placeholder="Buscar puesto, cliente o candidato" data-ui="bQ" value="${esc(UI.bQ)}">
-    <div class="seg" role="group" aria-label="Vista"><button data-act="bMode" data-v="cards" aria-pressed="${UI.bMode==="cards"}">Tarjetas</button><button data-act="bMode" data-v="table" aria-pressed="${UI.bMode==="table"}">Tabla</button></div>${xbtn("busquedas")}
+    <div class="seg" role="group" aria-label="Vista"><button data-act="bMode" data-v="cards" aria-pressed="${UI.bMode==="cards"}">Tarjetas</button><button data-act="bMode" data-v="table" aria-pressed="${UI.bMode==="table"}">Tabla</button><button data-act="bMode" data-v="seg" aria-pressed="${UI.bMode==="seg"}">Seguimiento</button></div>${xbtn("busquedas")}
   </div>`;
   if(!list.length) return h+`<div class="empty">No hay búsquedas con estos filtros.</div>`;
   if(UI.bMode==="cards"){
     h+=`<div class="cards">${list.map(cardBusqueda).join("")}</div>`;
+  } else if(UI.bMode==="seg"){
+    h+=tablaSeguimiento(list);
   } else {
     h+=`<div class="tablewrap"><table><thead><tr><th>Puesto</th><th>Cliente</th><th>Recruiter</th><th>Estado</th><th>Inicio</th><th>Cierre</th><th class="r">TTF</th><th>Candidato final</th></tr></thead><tbody>
     ${list.map(b=>`<tr class="click" data-act="openBusqueda" data-id="${b.id}"><td><b>${esc(b.puesto)}</b>${b.garantia?' <span class="tag">garantía</span>':""}${b.inicioAvance?' <span class="tag">inicio y avance</span>':""}</td><td>${esc(b.cliente)}</td><td>${esc(b.recruiter||"—")}</td><td>${pillEstado(b.estado)}</td><td class="num">${fd(b.fechaInicio)}</td><td class="num">${fd(b.fechaCierre)}</td><td class="r num">${ttf(b)??"—"}</td><td>${esc(b.candidatoFinal||"—")}</td></tr>`).join("")}
@@ -280,10 +302,10 @@ function cardBusqueda(b){
   const stages=ETAPAS.filter(e=>st[e]).map(e=>`<span>${e} <b>${st[e]}</b></span>`).join("");
   return `<article class="card">
     <div class="card-top"><div><h3>${esc(b.puesto)}</h3><div class="meta"><span>${esc(b.cliente)}</span><span>${esc(b.recruiter||"Sin recruiter")}</span>${b.prioridad?`<span>Prioridad ${esc(b.prioridad)}</span>`:""}</div></div>
-    ${b.estado==="Activa"?`<span class="pill ${ageSev(d)} plain num">${d??"—"} días</span>`:pillEstado(b.estado)}</div>
+    <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${pillSalud(salud(b))}${b.estado==="Activa"?`<span class="pill ${ageSev(d)} plain num">${d??"—"} días</span>`:pillEstado(b.estado)}</span></div>
     ${stages?`<div class="stages">${stages}</div>`:""}
     <div class="body">${b.detalle?`<p><span class="label">Estado</span><br>${esc(b.detalle)}</p>`:""}${b.proximoPaso?`<p><span class="label">Próximo paso</span><br>${esc(b.proximoPaso)}</p>`:""}${!b.detalle&&!b.proximoPaso?`<p class="muted">Sin novedades cargadas.</p>`:""}</div>
-    <div class="foot"><span class="muted" style="font-size:12px">${lt!=null?`Actualizada hace ${lt} días`:"Sin actualizar"}${b.candidatoFinal?` · ${esc(b.candidatoFinal)}`:""}</span>
+    <div class="foot"><span class="muted" style="font-size:12px">${lt!=null?`Actualizada hace ${lt} días`:"Sin actualizar"}${salud(b).motivos.length?` · ${esc(salud(b).motivos[0])}`:""}${b.candidatoFinal?` · ${esc(b.candidatoFinal)}`:""}</span>
     <span style="display:flex;gap:6px"><button class="btn sm" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button><button class="btn sm ghost" data-act="openBusqueda" data-id="${b.id}">Abrir</button></span></div>
   </article>`;
 }
@@ -300,10 +322,7 @@ function vCandidatos(){
       ${UI.cBusq?`<button class="btn" data-act="addPost" data-id="${UI.cBusq}">Sumar candidato a esta búsqueda</button><button class="btn ghost" data-act="openBusqueda" data-id="${UI.cBusq}">Ver búsqueda</button>${xbtn("pipeline")}`:""}</div>`;
     if(!UI.cBusq) return h+`<div class="empty">No hay búsquedas activas.</div>`;
     const ps=postsOf(UI.cBusq);
-    h+=`<div class="board">${ETAPAS.map(e=>{ const items=ps.filter(p=>p.etapa===e);
-      return `<div class="col"><div class="col-h"><span class="label">${e}</span><span class="cnt">${items.length}</span></div>
-      ${items.map(p=>{const c=S.candidatos[p.candidatoId]||{}; return `<div class="mini" data-act="openCandidato" data-id="${p.candidatoId}"><b>${esc(c.nombre||"Candidato")}</b><span class="muted">${esc([c.rolActual,c.empresaActual].filter(Boolean).join(" · ")||"—")}</span>${p.notas?`<span>${esc(p.notas)}</span>`:""}
-        <select data-post="${p.id}" aria-label="Etapa">${opt(ETAPAS,p.etapa)}</select></div>`;}).join("")}</div>`; }).join("")}</div>`;
+    h+=boardHTML(ps);
     if(!ps.length) h+=`<div class="note">Esta búsqueda todavía no tiene candidatos cargados. Usá “Sumar candidato” para empezar el pipeline.</div>`;
   } else {
     let list=vals(S.candidatos);
@@ -316,6 +335,97 @@ function vCandidatos(){
     </tbody></table></div>` : `<div class="empty">Sin resultados.</div>`;
   }
   return h;
+}
+
+// Kanban de una búsqueda: una columna por etapa. Cambiar el select mueve al candidato.
+function boardHTML(ps){
+  return `<div class="board">${ETAPAS.map(e=>{ const items=sortBy(ps.filter(p=>p.etapa===e),p=>p.fecha||"",-1);
+    return `<div class="col"><div class="col-h"><span class="label">${e}</span><span class="cnt">${items.length}</span></div>
+    ${items.map(p=>{const c=S.candidatos[p.candidatoId]||{}; const dE=days(trayecto(p).slice(-1)[0].fecha||p.fecha);
+      return `<div class="mini" data-act="openCandidato" data-id="${p.candidatoId}"><b>${esc(c.nombre||"Candidato")}</b><span class="muted">${esc([c.rolActual,c.empresaActual].filter(Boolean).join(" · ")||"—")}</span>${p.etapa==="Descartado"&&p.motivo?`<span class="tag">${esc(p.motivo)}</span>`:""}${p.notas?`<span>${esc(p.notas)}</span>`:""}${dE!=null&&!["Contratado","Descartado"].includes(p.etapa)?`<span class="muted" style="font-size:11.5px">${dE} días en la etapa</span>`:""}
+      <select data-post="${p.id}" aria-label="Etapa">${opt(ETAPAS,p.etapa)}</select></div>`;}).join("")}</div>`; }).join("")}</div>`;
+}
+
+// ================= SEGUIMIENTO DE BÚSQUEDAS =================
+// Funnel en miniatura: cuántos candidatos llegaron a cada etapa
+function miniFunnel(ps){
+  const f=funnelData(ps), max=Math.max(1,f.filas[0].n);
+  return `<span class="mf" title="${esc(f.filas.map(x=>`${x.e}: ${x.n}`).join(" · "))}">${f.filas.map(x=>`<i style="height:${x.n?Math.max(12,x.n/max*100):4}%"${x.n?"":' class="z"'}></i>`).join("")}</span>`;
+}
+function tablaSeguimiento(list){
+  const rows=sortBy(list.map(b=>({b,sa:salud(b),ps:postsOf(b.id)})),r=>`${SALUD_ORD[r.sa.nivel]}${String(999-(days(r.b.fechaInicio)||0)).padStart(4,"0")}`);
+  return `<div class="note">Semáforo: <b>en riesgo</b> si no hay movimiento hace más de 7 días, no se presentó terna a los 21 días o no quedan candidatos vivos · <b>atención</b> si no hay movimiento hace más de 4 días o quedan menos de 3 candidatos vivos. El funnel en miniatura muestra cuántos llegaron a cada etapa (Sourcing → Contratado).</div>
+  <div class="tablewrap"><table><thead><tr><th>Semáforo</th><th>Búsqueda</th><th>Recruiter</th><th class="r">Días</th><th>Funnel</th><th class="r">Vivos</th><th class="r">Presentados</th><th>Último movimiento</th><th>Próximo paso</th></tr></thead><tbody>
+  ${rows.map(({b,sa,ps})=>{ const sm=days(ultimoMov(b,ps));
+    return `<tr class="click" data-act="openBusqueda" data-id="${b.id}"><td>${pillSalud(sa)||pillEstado(b.estado)}${sa.motivos.length?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(sa.motivos.join(" · "))}</div>`:""}</td>
+    <td><b>${esc(b.puesto)}</b><div class="muted">${esc(b.cliente)}</div></td><td>${esc(b.recruiter||"—")}</td><td class="r num">${(b.estado==="Activa"?days(b.fechaInicio):ttf(b))??"—"}</td>
+    <td>${ps.length?miniFunnel(ps):'<span class="muted">—</span>'}</td><td class="r num">${ps.filter(p=>p.etapa!=="Descartado").length}</td><td class="r num">${ps.filter(p=>alcance(p)>=3).length}</td>
+    <td class="num">${hace(sm)}</td><td style="max-width:280px">${esc(b.proximoPaso||"—")}</td></tr>`; }).join("")}
+  </tbody></table></div>`;
+}
+// Tiempo promedio en cada etapa (días), a partir del historial de etapas
+function tiemposEtapa(ps){
+  const acc={};
+  ps.forEach(p=>{ const t=trayecto(p); t.forEach((x,i)=>{ if(["Contratado","Descartado"].includes(x.etapa)||!x.fecha) return; const hasta=t[i+1]?t[i+1].fecha:today(); if(!hasta) return; const d=days(x.fecha,hasta); if(d==null||d<0) return; (acc[x.etapa] ||= []).push(d); }); });
+  return ETAPAS.slice(0,6).filter(e=>acc[e]).map(e=>({e,n:acc[e].length,prom:acc[e].reduce((a,b)=>a+b,0)/acc[e].length}));
+}
+// Descartes: por motivo y etapa en la que quedaron afuera
+function descartes(ps){
+  const ds=ps.filter(p=>p.etapa==="Descartado"), mot={}, eta={};
+  ds.forEach(p=>{ mot[p.motivo||"Sin motivo cargado"]=(mot[p.motivo||"Sin motivo cargado"]||0)+1; const e=ETAPAS[alcance(p)]; eta[e]=(eta[e]||0)+1; });
+  return {n:ds.length,mot:Object.entries(mot).sort((a,b)=>b[1]-a[1]),eta:ETAPAS.filter(e=>eta[e]).map(e=>[e,eta[e]])};
+}
+function barras(rows,fmt=v=>v){ const max=Math.max(1,...rows.map(r=>r[1])); return rows.map(([l,v,extra])=>`<div class="bar"><span>${esc(l)}</span><div class="track"><i style="width:${Math.max(2,v/max*100)}%"></i></div><span class="num muted">${fmt(v)}${extra||""}</span></div>`).join(""); }
+
+function vFicha(){
+  const b=S.busquedas[UI.fichaId];
+  if(!b) return `<div class="head"><div><a href="#busquedas">← Búsquedas</a><h1>Búsqueda</h1></div></div><div class="empty">${!B().length?"Cargando…":"No se encontró esta búsqueda. Puede que la hayan eliminado."}</div>`;
+  const ps=postsOf(b.id), sa=salud(b), vivos=ps.filter(p=>p.etapa!=="Descartado"), pres=ps.filter(p=>alcance(p)>=3);
+  const d=b.estado==="Activa"?days(b.fechaInicio):ttf(b), sm=days(ultimoMov(b,ps));
+  const terna=b.fechaPrimeraTerna?`${fd(b.fechaPrimeraTerna)}`:pres.length?"Sí":"Pendiente";
+  const dTerna=b.fechaPrimeraTerna&&b.fechaInicio?days(b.fechaInicio,b.fechaPrimeraTerna):null;
+  const ti=tiemposEtapa(ps), de=descartes(ps);
+  let h=`<div class="head"><div><a href="#busquedas" class="muted" style="font-size:13px">← Búsquedas</a><h1>${esc(b.puesto)}</h1>
+    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${esc(b.cliente)} · ${esc(b.recruiter||"Sin recruiter")}${b.prioridad?` · Prioridad ${esc(b.prioridad)}`:""} ${pillEstado(b.estado)} ${pillSalud(sa)}</p></div>
+    <div class="toolbar"><button class="btn" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button><button class="btn" data-act="addPost" data-id="${b.id}">Sumar candidato</button><button class="btn" data-act="editBusqueda" data-id="${b.id}">Editar</button><button class="btn" data-act="repCliente" data-id="${b.id}">Reporte PDF</button><button class="btn lemon" data-act="linkCliente" data-id="${b.id}">Link para el cliente</button></div></div>`;
+  if(sa.motivos.length) h+=`<div class="panel cal ${sa.nivel}"><b>${SALUD_LAB[sa.nivel]}</b><span>${esc(sa.motivos.map(m=>m[0].toUpperCase()+m.slice(1)).join(" · "))}.</span></div>`;
+  h+=`<div class="kpis">${kpi(b.estado==="Activa"?"Días en curso":"Duración",d??"—",b.fechaInicio?`inicio ${fd(b.fechaInicio)}`:"")}${kpi("Candidatos",ps.length,`${vivos.length} vivos · ${de.n} descartados`)}${kpi("Presentados al cliente",pres.length,`primera terna: ${terna}${dTerna!=null?` (día ${dTerna})`:""}`)}${kpi("Último movimiento",hace(sm),ultimoMov(b,ps)?fd(ultimoMov(b,ps)):"")}</div>`;
+  h+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Funnel</h2><span class="muted">cuántos llegaron a cada etapa</span></div>${ps.length?funnelHTML(ps,""):`<div class="muted">Todavía no hay candidatos. Usá “Sumar candidato” para empezar.</div>`}</section>
+    <section class="panel"><div class="panel-head"><h2>Estado</h2><button class="btn sm" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button></div>
+    ${b.detalle?`<p><span class="label">Estado actual</span><br>${esc(b.detalle)}</p>`:""}${b.proximoPaso?`<p><span class="label">Próximo paso</span><br>${esc(b.proximoPaso)}</p>`:""}${!b.detalle&&!b.proximoPaso?`<p class="muted">Sin novedades cargadas.</p>`:""}
+    <span class="label">Bitácora</span>${(b.bitacora||[]).length?`<div class="log">${sortBy(b.bitacora,x=>x.fecha,-1).slice(0,6).map(x=>`<div><small>${fd(x.fecha)} · ${esc(authorName(x.autor))}</small>${esc(x.texto)}</div>`).join("")}</div>`:`<div class="muted" style="font-size:13px">Sin entradas todavía.</div>`}</section></div>`;
+  h+=`<section class="panel"><div class="panel-head"><h2>Pipeline</h2><span style="display:flex;gap:6px">${xbtnFicha(b.id)}<button class="btn sm" data-act="addPost" data-id="${b.id}">Sumar candidato</button></span></div>${ps.length?boardHTML(ps):`<div class="muted">Sin candidatos en el pipeline.</div>`}</section>`;
+  h+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Tiempo por etapa</h2><span class="muted">promedio en días</span></div>${ti.length?barras(ti.map(x=>[x.e,Math.round(x.prom),` · ${x.n}`]),v=>`${v} d`)+`<div class="muted" style="font-size:12px">Promedio de días que pasan los candidatos en cada etapa (y cuántos se midieron). Se vuelve más preciso a medida que se registran los cambios de etapa.</div>`:`<div class="muted">Todavía no hay cambios de etapa registrados.</div>`}</section>
+    <section class="panel"><div class="panel-head"><h2>Descartes</h2><span class="muted">${de.n} en total</span></div>${de.n?`<span class="label">Por motivo</span>${barras(de.mot)}<span class="label">Etapa en la que quedaron afuera</span>${barras(de.eta)}`:`<div class="muted">No hay candidatos descartados.</div>`}</section></div>`;
+  return h;
+}
+const xbtnFicha = id => `<button class="btn sm ghost" data-act="pipeFicha" data-id="${id}">Exportar</button>`;
+
+// Elegir motivo antes de descartar
+function drawerDescarte(pid){
+  const p=S.postulaciones[pid]; if(!p) return; const c=S.candidatos[p.candidatoId]||{}, b=S.busquedas[p.busquedaId]||{};
+  openDrawer("Descartar candidato",`${esc(c.nombre||"Candidato")} · ${esc(b.puesto||"")}`,`<div class="form">${fsel("Motivo","ds-m",["",...MOTIVOS_DESC],p.motivo||"","full")}${farea("Nota (opcional)","ds-n",p.motivoDetalle||"")}</div>
+    <div class="note">Queda registrado en qué etapa estaba (${esc(p.etapa)}) para las estadísticas de la búsqueda.</div>`,{save:{label:"Descartar"}});
+  drawerSave.save.fn=async()=>{ const m=gv("ds-m"); if(!m){ toast("Elegí el motivo del descarte.",true); return; }
+    if(await write("postulaciones/"+pid,{etapa:"Descartado",motivo:m,motivoDetalle:gv("ds-n"),fecha:today()},"update")){ toast("Candidato descartado"); closeDrawer(); } };
+}
+
+// Link privado de solo lectura para el cliente
+async function drawerLink(bid){
+  const b=S.busquedas[bid]; if(!b) return;
+  let l=null; try{ l=await api("/api/links/"+encodeURIComponent(bid)); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo cargar el link.",true); return; }
+  const url=l?`${location.origin}/c/${l.token}`:"";
+  const body=`<div class="note">El cliente ve, sin iniciar sesión: estado, días en curso, el funnel (cantidades por etapa), los candidatos presentados (nombre, rol y empresa) y los textos de abajo. No ve montos, notas internas, contactos de candidatos ni el semáforo.</div>
+  ${l?`<div class="section"><span class="label">Link activo</span><div class="row"><input id="lk-url" type="text" readonly value="${esc(url)}" style="flex:1"><button class="btn sm" data-act="copyLink">Copiar</button></div>
+    <div class="muted" style="font-size:12px">${l.vistas?`Abierto ${l.vistas} ${l.vistas===1?"vez":"veces"} · última ${new Date(l.ultimaVista).toLocaleString("es-AR")}`:"Todavía no lo abrieron."}</div>
+    <div><button class="btn sm danger" data-act="unlinkCliente" data-id="${bid}">Desactivar link</button></div></div>`:""}
+  <div class="form">${farea("Estado de la búsqueda (lo lee el cliente)","lk-res",l?l.resumen:(b.detalle||""))}${farea("Próximos pasos","lk-pp",l?l.proximos:(b.proximoPaso||""))}
+  <label class="check full"><input id="lk-cand" type="checkbox"${!l||l.mostrarCandidatos?" checked":""}> Mostrar candidatos presentados</label></div>`;
+  openDrawer("Link para el cliente",`${esc(b.puesto)} · ${esc(b.cliente)}`,body,{save:{label:l?"Guardar cambios":"Crear link"}});
+  drawerSave.save.fn=async()=>{
+    try{ await api("/api/links/"+encodeURIComponent(bid),{method:"POST",body:JSON.stringify({resumen:gv("lk-res"),proximos:gv("lk-pp"),mostrarCandidatos:gv("lk-cand")})}); toast(l?"Link actualizado":"Link creado"); drawerLink(bid); }
+    catch(e){ if(e.code!==401) toast(e.message||"No se pudo guardar.",true); }
+  };
 }
 
 // ================= CRM =================
@@ -835,7 +945,12 @@ document.addEventListener("click",async e=>{
     case "fTab": UI.fTab=v; render(); break;
     case "ecoYear": UI.ecoYear=+v; render(); break;
     case "newBusqueda": drawerBusqueda(null); break;
-    case "openBusqueda": drawerBusqueda(id); if(id) cargarHistSection("busquedas",id); break;
+    case "openBusqueda": if(id){ if(location.hash==="#busqueda/"+encodeURIComponent(id)) route(); else location.hash="#busqueda/"+encodeURIComponent(id); } else drawerBusqueda(null); break;
+    case "editBusqueda": drawerBusqueda(id); if(id) cargarHistSection("busquedas",id); break;
+    case "linkCliente": drawerLink(id); break;
+    case "copyLink": { const i=$("#lk-url"); if(i){ try{ await navigator.clipboard.writeText(i.value); toast("Link copiado"); }catch(err){ i.select(); toast("Seleccionado: copialo con Ctrl+C",true); } } break; }
+    case "unlinkCliente": if(!confirm("¿Desactivar el link? El cliente ya no va a poder abrirlo.")) break; try{ await api("/api/links/"+encodeURIComponent(id),{method:"DELETE"}); toast("Link desactivado"); drawerLink(id); }catch(err){ if(err.code!==401) toast(err.message||"No se pudo desactivar.",true); } break;
+    case "pipeFicha": UI.cBusq=id; descargarExcel(datosExport("pipeline"),EXPORT_NOMBRE.pipeline||"pipeline"); break;
     case "weeklyUpdate": drawerWeekly(id); break;
     case "newCandidato": drawerCandidato(null); break;
     case "openCandidato": drawerCandidato(id); if(id){ cargarArchivos("candidatos",id); cargarHistSection("candidatos",id); } break;
@@ -906,14 +1021,15 @@ document.addEventListener("click",async e=>{
 });
 document.addEventListener("change",async e=>{
   const el=e.target;
-  if(el.dataset.post){ const p=S.postulaciones[el.dataset.post]; if(p && p.etapa!==el.value){ if(await write("postulaciones/"+p.id,{etapa:el.value,fecha:today()},"update")){ toast(`Movido a ${el.value}`);
+  if(el.dataset.post){ const p=S.postulaciones[el.dataset.post]; if(p && el.value==="Descartado" && p.etapa!=="Descartado"){ el.value=p.etapa; drawerDescarte(p.id); return; }
+    if(p && p.etapa!==el.value){ if(await write("postulaciones/"+p.id,{etapa:el.value,fecha:today(),...(p.etapa==="Descartado"?{motivo:"",motivoDetalle:""}:{})},"update")){ toast(`Movido a ${el.value}`);
       if(el.value==="Contratado"){ const b=S.busquedas[p.busquedaId], c=S.candidatos[p.candidatoId]; if(b&&c&&!b.candidatoFinal) await write("busquedas/"+b.id,{candidatoFinal:c.nombre,actualizado:today()},"update"); }
       const open=$("#overlay .drawer"); if(open){ /* keep drawer */ } } } return; }
   if(el.dataset.ui && el.tagName==="SELECT"){ UI[el.dataset.ui]=el.value; render(); }
 });
 document.addEventListener("input",e=>{ const el=e.target; if(el.dataset.ui && el.tagName==="INPUT"){ UI[el.dataset.ui]=el.value; clearTimeout(window.__qt); window.__qt=setTimeout(render,180); } });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("#overlay .drawer")) closeDrawer(); });
-function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } view=h==="scorecard"?"weekly":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="conexiones") refresh("conexiones"); if(view==="ajustes") cargarPapelera(); if(view==="historial") S.historial=null; }
+function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); view=h==="scorecard"?"weekly":h.startsWith("busqueda/")?"ficha":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="conexiones") refresh("conexiones"); if(view==="ajustes") cargarPapelera(); if(view==="historial") S.historial=null; }
 window.addEventListener("hashchange",route);
 
 // ---------- login ----------
@@ -1355,17 +1471,17 @@ function repMensual(k){
 }
 
 // ---- Funnel ----
+// Cuenta cuántos candidatos llegaron a cada etapa (incluye a los descartados hasta la etapa en la que quedaron afuera)
 function funnelData(ps){
-  const etapas=["Sourcing","Contactado","Entrevista LT","Presentado","Entrevista cliente","Oferta","Contratado"];
-  const vivos=ps.filter(p=>p.etapa!=="Descartado");
-  return {total:ps.length, desc:ps.length-vivos.length, filas:etapas.map((e,i)=>({e,n:vivos.filter(p=>ETAPAS.indexOf(p.etapa)>=i).length}))};
+  const etapas=ETAPAS.slice(0,7);
+  return {total:ps.length, desc:ps.filter(p=>p.etapa==="Descartado").length, filas:etapas.map((e,i)=>({e,n:ps.filter(p=>alcance(p)>=i).length}))};
 }
 function funnelHTML(ps,titulo="Funnel del proceso"){
   if(!ps.length) return "";
   const f=funnelData(ps); const max=Math.max(1,f.filas[0].n);
   return `<div class="section"><span class="label">${titulo}</span>
   ${f.filas.map((x,i)=>{const prev=i?f.filas[i-1].n:null; return `<div class="bar"><span>${x.e}</span><div class="track"><i style="width:${Math.max(2,x.n/max*100)}%"></i></div><span class="num muted">${x.n}${prev?` · ${pct(x.n/prev)}`:""}</span></div>`;}).join("")}
-  <div class="muted" style="font-size:12px">${f.total} candidatos en total · ${f.desc} descartados (no se cuentan en el funnel). El % es la conversión desde la etapa anterior.</div></div>`;
+  <div class="muted" style="font-size:12px">${f.total} candidatos en total · ${f.desc} descartados (cuentan hasta la etapa a la que llegaron). El % es la conversión desde la etapa anterior.</div></div>`;
 }
 function funnelPanel(){
   const desde=addDays(today(),-180); const bs=B().filter(b=>(b.fechaInicio||"")>=desde); const ids=new Set(bs.map(b=>b.id));

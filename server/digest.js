@@ -164,7 +164,7 @@ export function registerDigest(app, { db, pool, S, auth, rank, RANK, R, clean, n
         regId = regId || newId(PREFIJO[p.coleccion] || "x");
         await db.insert(r.t).values({ ...vals, id: regId });
         if (p.coleccion === "candidatos" && _busquedaId)
-          await db.insert(S.postulaciones).values({ id: newId("p"), busquedaId: _busquedaId, candidatoId: regId, etapa: _etapa || "Contactado", fecha: today() });
+          await db.insert(S.postulaciones).values({ id: newId("p"), busquedaId: _busquedaId, candidatoId: regId, etapa: _etapa || "Contactado", fecha: today(), etapas: [{ etapa: _etapa || "Contactado", fecha: today(), autor: req.user.id }] });
       } else {
         const [row] = await db.select().from(r.t).where(eq(cols.id, regId));
         if (!row) return res.status(404).json({ error: "El registro de esta propuesta ya no existe." });

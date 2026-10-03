@@ -41,12 +41,21 @@ Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` e
 | `busquedas` | Cada proceso: puesto, cliente, recruiter, estado (Activa / En pausa / Cerrada / Cancelada), fechas, candidato final, garantía, `bitacora` (actualizaciones semanales) y `minutas` (links de Granola). |
 | `busquedas_fin` | Sueldo, fee y comisión de cada búsqueda. Solo socios. |
 | `candidatos` | Base de talento reutilizable. `tags` y `minutas` en jsonb. |
-| `postulaciones` | Candidato × búsqueda. Etapas: Sourcing → Contactado → Entrevista LT → Presentado → Entrevista cliente → Oferta → Contratado / Descartado. |
+| `postulaciones` | Candidato × búsqueda. Etapas: Sourcing → Contactado → Entrevista LT → Presentado → Entrevista cliente → Oferta → Contratado / Descartado. `etapas` (jsonb) es el historial de cambios de etapa y lo arma **solo el servidor** (`conEtapas` en `server/seguimiento.js`). Al descartar se pide `motivo` (lista fija) y `motivoDetalle`. |
+| `links_cliente` | Link privado de solo lectura por búsqueda (`/c/<token>`), con textos revisados para el cliente. |
 | `facturas` | Monto, moneda (ARS/USD), emisor (MATI / PAU / Invoice), tipo (Inicio y avance / Cierre / 50% anticipo / Cancelación), cobrada, comisión de la recruiter y si ya se pagó. `historico=true` son montos pre-dic-2024 tomados de la planilla. |
 | `clientes`, `leads` | CRM. Cuando un lead pasa a "Ganado", el frontend crea el cliente. |
 | `meses` | P&L. `historico=true` (ene-2023 a sep-2026) trae ingresos fijos de la planilla Economics. Desde oct-2026 los ingresos salen de `facturas` por fecha de emisión y las comisiones se suman solas como gasto. Acá solo se cargan el TC y los gastos fijos. |
 | `config` | `equipo` (recruiters, capacidad, % comisión, ICPs) y `objetivos` (facturación mensual, ticket, time to fill, etc.). |
 | `feedback` | Pedidos de mejora del equipo, con estado y respuesta. |
+
+## Seguimiento de búsquedas (`server/seguimiento.js`)
+
+- **Ficha de búsqueda** (`#busqueda/<id>`, `vFicha`): KPIs, funnel, estado y bitácora, pipeline, tiempo por etapa y descartes por motivo. "Editar" abre el panel lateral de siempre.
+- **Funnel real**: cuenta cuántos candidatos *llegaron* a cada etapa según su historial (`alcance`), incluidos los descartados hasta donde llegaron.
+- **Semáforo** (`salud`): en riesgo si no hay movimiento hace más de 7 días, no hay terna a los 21 días o no quedan candidatos vivos; atención si no hay movimiento hace más de 4 días o quedan menos de 3 vivos. Las reglas de cantidad de candidatos esperan 7 días desde el inicio. Vista "Seguimiento" en Búsquedas.
+- **Link para el cliente**: `GET/POST/DELETE /api/links/:busquedaId` (cualquier usuario logueado) y la página pública `/c/:token`, sin login. Muestra estado, funnel, candidatos presentados (nombre, rol y empresa) y los textos del link. Nunca montos, notas internas, contactos ni semáforo.
+- Las columnas y tablas nuevas se crean solas al arrancar (`migrarSeguimiento`), sin `db:push`.
 
 ## Convenciones de negocio
 

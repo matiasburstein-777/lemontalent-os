@@ -53,7 +53,7 @@ export function diff(antes, despues) {
   const out = {};
   const keys = new Set([...Object.keys(antes || {}), ...Object.keys(despues || {})]);
   for (const k of keys) {
-    if (k === "id" || k === "actualizado") continue;
+    if (k === "id" || k === "actualizado" || k === "etapas") continue; // etapas: lo arma el servidor, ya queda el cambio de etapa
     if (despues && !(k in despues)) continue; // solo lo que se envió
     const a = antes ? antes[k] : undefined, b = despues ? despues[k] : undefined;
     const na = a === "" ? null : a ?? null, nb = b === "" ? null : b ?? null;
