@@ -283,7 +283,12 @@ function vBusquedas(){
   if(UI.bRec) list=list.filter(b=>b.recruiter===UI.bRec);
   if(UI.bCli) list=list.filter(b=>b.cliente===UI.bCli);
   if(UI.bQ){ const q=keyN(UI.bQ); list=list.filter(b=>keyN([b.puesto,b.cliente,b.candidatoFinal,b.recruiter].join(" ")).includes(q)); }
-  list=sortBy(list,b=>b.fechaInicio||"",-1);
+  if(UI.bMode==="seg") UI.bMode="cards";
+  // Orden: riesgo (semáforo, después más días abierta), días abierta, último movimiento, cliente o fecha de inicio
+  const ORD={riesgo:["Por riesgo",b=>`${SALUD_ORD[salud(b).nivel]}${String(99999-(days(b.fechaInicio)||0)).padStart(5,"0")}`,1],dias:["Por días abierta",b=>b.fechaInicio||"9999",1],mov:["Por último mov.",b=>ultimoMov(b)||"",1],cliente:["Por cliente",b=>keyN(b.cliente),1],inicio:["Más recientes",b=>b.fechaInicio||"",-1]};
+  if(!ORD[UI.bOrd]) UI.bOrd="riesgo";
+  const ord=UI.bOrd;
+  list=sortBy(list,ORD[ord][1],ORD[ord][2]);
   const counts={}; ESTADOS_B.forEach(e=>counts[e]=B().filter(b=>b.estado===e).length);
   let h=`<div class="head"><div><h1>Búsquedas</h1><p>Todas las búsquedas y su estado. Reemplaza la planilla de Gestión.</p></div>
     <button class="btn lemon" data-act="newBusqueda">Nueva búsqueda</button></div>
@@ -292,13 +297,13 @@ function vBusquedas(){
     <select id="f-brec" data-ui="bRec" aria-label="Recruiter"><option value="">Todas las recruiters</option>${opt(recs,UI.bRec)}</select>
     <select id="f-bcli" data-ui="bCli" aria-label="Cliente"><option value="">Todos los clientes</option>${opt(uniq(B().map(b=>b.cliente)).sort((a,b)=>a.localeCompare(b,"es")),UI.bCli)}</select>
     <input id="q-b" type="search" placeholder="Buscar puesto, cliente o candidato" data-ui="bQ" value="${esc(UI.bQ)}">
-    <div class="seg" role="group" aria-label="Vista"><button data-act="bMode" data-v="cards" aria-pressed="${UI.bMode==="cards"}">Tarjetas</button><button data-act="bMode" data-v="table" aria-pressed="${UI.bMode==="table"}">Tabla</button><button data-act="bMode" data-v="seg" aria-pressed="${UI.bMode==="seg"}">Seguimiento</button></div>${xbtn("busquedas")}
-  </div>`;
+  </div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="Vista"><button data-act="bMode" data-v="cards" aria-pressed="${UI.bMode==="cards"}">Tarjetas</button><button data-act="bMode" data-v="table" aria-pressed="${UI.bMode==="table"}">Tabla</button></div>
+    <select id="f-bord" data-ui="bOrd" aria-label="Ordenar por">${Object.entries(ORD).map(([k,[l]])=>`<option value="${k}"${k===ord?" selected":""}>${l}</option>`).join("")}</select>${xbtn("busquedas","Excel")}</div>`;
   if(!list.length) return h+`<div class="empty">No hay búsquedas con estos filtros.</div>`;
   if(UI.bMode==="cards"){
+    if(UI.bEstado==="Activa") h+=`<details class="note"><summary>¿Cómo se calcula el semáforo?</summary><b>En riesgo</b>: sin movimiento hace más de 7 días, sin terna a los 21 días o sin candidatos vivos. <b>Atención</b>: sin movimiento hace más de 4 días o menos de 3 candidatos vivos. Las reglas de cantidad de candidatos esperan 7 días desde el inicio. El funnel chico muestra cuántos llegaron a cada etapa (Sourcing → Contratado).</details>`;
     h+=`<div class="cards">${list.map(cardBusqueda).join("")}</div>`;
-  } else if(UI.bMode==="seg"){
-    h+=tablaSeguimiento(list);
   } else {
     h+=`<div class="tablewrap"><table><thead><tr><th>Puesto</th><th>Cliente</th><th>Recruiter</th><th>Estado</th><th>Inicio</th><th>Cierre</th><th class="r">TTF</th><th>Candidato final</th></tr></thead><tbody>
     ${list.map(b=>`<tr class="click" data-act="openBusqueda" data-id="${b.id}"><td><b>${esc(b.puesto)}</b>${b.garantia?' <span class="tag">garantía</span>':""}${b.inicioAvance?' <span class="tag">inicio y avance</span>':""}</td><td>${esc(b.cliente)}</td><td>${esc(b.recruiter||"—")}</td><td>${pillEstado(b.estado)}</td><td class="num">${fd(b.fechaInicio)}</td><td class="num">${fd(b.fechaCierre)}</td><td class="r num">${ttf(b)??"—"}</td><td>${esc(b.candidatoFinal||"—")}</td></tr>`).join("")}
@@ -308,12 +313,12 @@ function vBusquedas(){
 }
 function cardBusqueda(b){
   const d=b.estado==="Activa"?days(b.fechaInicio):ttf(b); const lt=days(lastTouch(b));
-  const ps=postsOf(b.id); const st={}; ps.forEach(p=>st[p.etapa]=(st[p.etapa]||0)+1);
-  const stages=ETAPAS.filter(e=>st[e]).map(e=>`<span>${e} <b>${st[e]}</b></span>`).join("");
+  const ps=postsOf(b.id), sm=days(ultimoMov(b,ps));
+  const stages=ps.length?`<div class="segcard-nums">${miniFunnel(ps)}<span><b class="num">${ps.filter(p=>p.etapa!=="Descartado").length}</b> vivos</span><span><b class="num">${ps.filter(p=>alcance(p)>=3).length}</b> presentados</span><span class="muted">mov. ${hace(sm)}</span></div>`:"";
   return `<article class="card">
     <div class="card-top"><div><h3>${esc(b.puesto)}</h3><div class="meta"><span>${esc(b.cliente)}</span><span>${esc(b.recruiter||"Sin recruiter")}</span>${b.prioridad?`<span>Prioridad ${esc(b.prioridad)}</span>`:""}</div></div>
     <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${pillSalud(salud(b))}${b.estado==="Activa"?`<span class="pill ${ageSev(d)} plain num">${d??"—"} días</span>`:pillEstado(b.estado)}</span></div>
-    ${stages?`<div class="stages">${stages}</div>`:""}
+    ${stages}
     <div class="body">${b.detalle?`<p><span class="label">Estado</span><br>${esc(b.detalle)}</p>`:""}${b.proximoPaso?`<p><span class="label">Próximo paso</span><br>${esc(b.proximoPaso)}</p>`:""}${!b.detalle&&!b.proximoPaso?`<p class="muted">Sin novedades cargadas.</p>`:""}</div>
     <div class="foot"><span class="muted" style="font-size:12px">${lt!=null?`Actualizada hace ${lt} días`:"Sin actualizar"}${salud(b).motivos.length?` · ${esc(salud(b).motivos[0])}`:""}${b.candidatoFinal?` · ${esc(b.candidatoFinal)}`:""}</span>
     <span style="display:flex;gap:6px"><button class="btn sm" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button><button class="btn sm ghost" data-act="openBusqueda" data-id="${b.id}">Abrir</button></span></div>
@@ -1154,7 +1159,7 @@ document.addEventListener("click",async e=>{
     case "closeDrawer": closeDrawer(); break;
     case "drawerSave": if(drawerSave?.save?.fn){ t.disabled=true; try{ await drawerSave.save.fn(); } finally { t.disabled=false; } } break;
     case "drawerDel": drawerSave?.del?.fn && drawerSave.del.fn(); break;
-    case "bEstado": UI.bEstado=v; if(v!=="Activa"&&UI.bMode==="cards") UI.bMode="table"; if(v==="Activa") UI.bMode="cards"; render(); break;
+    case "bEstado": UI.bEstado=v; if(v!=="Activa"&&UI.bMode==="cards") UI.bMode="table"; if(v==="Activa") UI.bMode="cards"; UI.bOrd=v==="Activa"?"riesgo":"inicio"; render(); break;
     case "bMode": UI.bMode=v; render(); break;
     case "cTab": UI.cTab=v; render(); break;
     case "crmTab": UI.crmTab=v; render(); break;

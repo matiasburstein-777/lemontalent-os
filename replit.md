@@ -54,7 +54,7 @@ Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` e
 
 - **Ficha de búsqueda** (`#busqueda/<id>`, `vFicha`): KPIs, funnel, estado y bitácora, pipeline, tiempo por etapa y descartes por motivo. "Editar" abre el panel lateral de siempre.
 - **Funnel real**: cuenta cuántos candidatos *llegaron* a cada etapa según su historial (`alcance`), incluidos los descartados hasta donde llegaron.
-- **Semáforo** (`salud`): en riesgo si no hay movimiento hace más de 7 días, no hay terna a los 21 días o no quedan candidatos vivos; atención si no hay movimiento hace más de 4 días o quedan menos de 3 vivos. Las reglas de cantidad de candidatos esperan 7 días desde el inicio. Vista "Seguimiento" en Búsquedas.
+- **Semáforo** (`salud`): en riesgo si no hay movimiento hace más de 7 días, no hay terna a los 21 días o no quedan candidatos vivos; atención si no hay movimiento hace más de 4 días o quedan menos de 3 vivos. Las reglas de cantidad de candidatos esperan 7 días desde el inicio. Las tarjetas de Búsquedas muestran semáforo, funnel chico, vivos y presentados, y se ordenan por riesgo (por defecto), días abierta, último movimiento, cliente o más recientes. La vista Tabla queda para el historial.
 - **Link para el cliente**: `GET/POST/DELETE /api/links/:busquedaId` (cualquier usuario logueado) y la página pública `/c/:token`, sin login. Muestra estado, funnel, candidatos presentados (nombre, rol y empresa) y los textos del link. Nunca montos, notas internas, contactos ni semáforo.
 - Las columnas y tablas nuevas se crean solas al arrancar (`migrarSeguimiento`), sin `db:push`.
 
