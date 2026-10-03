@@ -18,7 +18,7 @@ const S = {busquedas:{},candidatos:{},postulaciones:{},equipo:null,facturas:{},f
 const loaded = {};
 let me = {id:null}, isAdmin = false, canFin = false, isAdm = false; // isAdmin = socio; canFin = socio o administradora
 let view = "panel";
-const UI = {bEstado:"Activa",bRec:"",bCli:"",bQ:"",bMode:"cards",cTab:"pipeline",cBusq:"",cQ:"",crmTab:"leads",lQ:"",fTab:"pendientes",ecoYear:new Date().getFullYear()};
+const UI = {bEstado:"Activa",bRec:"",bCli:"",bQ:"",bMode:"cards",cTab:"base",cBusq:"",cQ:"",crmTab:"leads",lQ:"",fTab:"pendientes",ecoYear:new Date().getFullYear()};
 let names = {};
 
 // ---------- utils ----------
@@ -155,16 +155,17 @@ function clienteStats(){
 
 // ---------- rendering shell ----------
 const VIEWS = [
+  {sep:"Hoy"},
   {id:"panel",label:"Panel"},
   {id:"propuestas",label:"Bandeja de propuestas",admin:true,cnt:()=>vals(S.propuestas).filter(p=>p.estado==="Pendiente").length},
   {id:"weekly",label:"Weekly"},
+  {sep:"Operación"},
   {id:"busquedas",label:"Búsquedas",cnt:()=>activas().length},
   {id:"candidatos",label:"Candidatos",cnt:()=>vals(S.candidatos).length},
   {id:"recruiters",label:()=>canFin?"Equipo":"Mi panel"},
   {sep:"Negocio",admin:true},
   {id:"crm",label:"Clientes y leads",admin:true,cnt:()=>vals(S.leads).filter(l=>!["Ganado","Perdido"].includes(l.etapa)).length},
-  {id:"cobros",label:"Facturas y cobros",admin:true,cnt:()=>vals(S.facturas).filter(f=>!f.cobrada).length},
-  {id:"economics",label:"Unit economics",admin:true},
+  {id:"cobros",label:"Finanzas",admin:true,cnt:()=>vals(S.facturas).filter(f=>!f.cobrada).length},
   {sep:"Sistema"},
   {id:"config",label:"Configuración",cnt:()=>(canFin?calidadDatos().length:0)+vals(S.feedback).filter(f=>f.estado==="Pendiente"||f.estado==="En curso").length},
 ];
@@ -267,8 +268,10 @@ function vPanel(){
   if(canFin){ const q=calidadDatos(); if(q.length) cal=`<div class="note" style="margin-top:10px">${q.length} puntos de calidad de datos para revisar. <a href="#calidad">Ver calidad de datos</a></div>`; }
   h+=`<div class="grid2">
     <section class="panel"><div class="panel-head"><h2>Requieren atención</h2>${filtros}</div><div class="list">${attH}</div>${cal}</section>
-    <section class="panel"><div class="panel-head"><h2>Carga por recruiter</h2><span class="muted">búsquedas activas / capacidad</span></div>${bars||'<div class="empty">Cargá el equipo en “Equipo y accesos”.</div>'}</section>
+    <section class="panel"><div class="panel-head"><h2>Carga por recruiter</h2><span class="muted">búsquedas activas / capacidad</span></div>${bars||'<div class="empty">Cargá el equipo en Equipo › Editar equipo.</div>'}</section>
   </div>`;
+  if(canFin){ const pp=sortBy(vals(S.propuestas).filter(p=>p.estado==="Pendiente"),p=>p.fecha||p.creado||"",-1);
+    if(pp.length) h+=`<section class="panel"><div class="panel-head"><h2>Propuestas pendientes</h2><a class="btn sm" href="#propuestas">Revisar las ${pp.length} en la Bandeja</a></div><div class="list">${pp.slice(0,5).map(p=>`<a class="row" href="#propuestas" style="text-decoration:none;color:inherit"><div class="grow" style="min-width:0"><div>${esc(p.resumen||"")}</div><div class="muted" style="font-size:12px">${esc([p.fuente,p.cuenta,p.fecha?fd(String(p.fecha).slice(0,10)):""].filter(Boolean).join(" · "))}</div></div><span class="pill ${FUENTE_PILL[p.fuente]||""}">${esc(p.fuente||"Digest")}</span></a>`).join("")}</div></section>`; }
   h+=funnelPanel();
   return h;
 }
@@ -321,10 +324,10 @@ function cardBusqueda(b){
 
 // ================= CANDIDATOS =================
 function vCandidatos(){
-  let h=`<div class="head"><div><h1>Candidatos</h1><p>Pipeline por búsqueda y base de talento reutilizable.</p></div>
-    <div class="toolbar"><div class="seg" role="group"><button data-act="cTab" data-v="pipeline" aria-pressed="${UI.cTab==="pipeline"}">Pipeline</button><button data-act="cTab" data-v="base" aria-pressed="${UI.cTab==="base"}">Base de talento</button></div>
-    <button class="btn lemon" data-act="newCandidato">Nuevo candidato</button></div></div>`;
-  if(UI.cTab==="pipeline"){
+  // El pipeline de cada búsqueda vive en su ficha; acá queda la base de talento
+  let h=`<div class="head"><div><h1>Candidatos</h1><p>Base de talento reutilizable. El pipeline de cada búsqueda está en su ficha.</p></div>
+    <button class="btn lemon" data-act="newCandidato">Nuevo candidato</button></div>`;
+  if(false){
     const act=sortBy(activas(),b=>b.cliente);
     if(!UI.cBusq || !S.busquedas[UI.cBusq]) UI.cBusq=act[0]?.id||"";
     h+=`<div class="toolbar"><select id="f-cb" data-ui="cBusq" aria-label="Búsqueda">${act.map(b=>`<option value="${b.id}"${b.id===UI.cBusq?" selected":""}>${esc(b.cliente)} · ${esc(b.puesto)}</option>`).join("")}${UI.cBusq&&!act.find(b=>b.id===UI.cBusq)?`<option value="${UI.cBusq}" selected>${esc(S.busquedas[UI.cBusq]?.puesto)}</option>`:""}</select>
@@ -566,10 +569,11 @@ function vCobros(){
   const cARS=com.filter(f=>f.monedaComision!=="USD").reduce((s,f)=>s+f.comision,0), cUSD=com.filter(f=>f.monedaComision==="USD").reduce((s,f)=>s+f.comision,0);
   const emitMes=F.filter(f=>!f.historico&&ym(f.fechaEmision)===k);
   const emitUSD=emitMes.reduce((s,f)=>s+fcUSD(f),0), cobUSD=emitMes.filter(f=>f.cobrada).reduce((s,f)=>s+fcUSD(f),0);
-  const tabs=[["pendientes",`Por cobrar <span class="muted num">${pend.length}</span>`],["cobradas","Cobradas"],["comisiones",`Comisiones <span class="muted num">${com.length}</span>`],["gastos","Gastos"],["todas","Todas"]];
-  let h=`<div class="head"><div><h1>Facturas y cobros</h1><p>Emisión, cobranza, comisiones de recruiters y gastos.</p></div>${UI.fTab==="gastos"?`<button class="btn lemon" data-act="newGasto">Nuevo gasto</button>`:`<button class="btn lemon" data-act="newFactura">Nueva factura</button>`}</div>
-  <div class="toolbar"><div class="seg" role="group" aria-label="Vista">${tabs.map(([v,l])=>`<button data-act="fTab" data-v="${v}" aria-pressed="${UI.fTab===v}">${l}</button>`).join("")}</div>${UI.fTab!=="gastos"?xbtn("facturas"):""}</div>`;
+  const tabs=[["pendientes",`Por cobrar <span class="muted num">${pend.length}</span>`],["cobradas","Cobradas"],["comisiones",`Comisiones <span class="muted num">${com.length}</span>`],["gastos","Gastos"],["resultados","Resultados"],["todas","Todas las facturas"]];
+  let h=`<div class="head"><div><h1>Finanzas</h1><p>Facturas, cobranza, comisiones, gastos y resultados.</p></div>${UI.fTab==="gastos"?`<button class="btn lemon" data-act="newGasto">Nuevo gasto</button>`:UI.fTab==="resultados"?"":`<button class="btn lemon" data-act="newFactura">Nueva factura</button>`}</div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="Vista">${tabs.map(([v,l])=>`<button data-act="fTab" data-v="${v}" aria-pressed="${UI.fTab===v}">${l}</button>`).join("")}</div>${!["gastos","resultados"].includes(UI.fTab)?xbtn("facturas"):""}</div>`;
   if(UI.fTab==="gastos") return h+vGastos();
+  if(UI.fTab==="resultados") return h+`<div class="subview">${vEconomics()}</div>`;
   h+=`<div class="kpis">${kpi("Por cobrar",`${short(pARS)} <span class="muted" style="font-size:14px">ARS</span>`,`${usd(pUSD)} · ${pend.length} facturas`)}
   ${kpi("Vencidas (+30 días)",venc.length,venc.length?`${ars(venc.reduce((s,f)=>s+fcARS(f),0))} ARS eq.`:"al día")}
   ${kpi("Cobrado de lo emitido en "+fm(k),emitUSD?pct(cobUSD/emitUSD):"—",`${usd(cobUSD)} de ${usd(emitUSD)}`, emitUSD?cobUSD/emitUSD:null)}
@@ -697,7 +701,7 @@ function vEconomics(){
   const conc=topCli.slice(0,3).reduce((s,x)=>s+x[1],0)/(factTotal||1);
   const o=obj();
   if(!isAdmin) return vEconomicsAdm({y,years,ms,P,sum,ing,F,cierres,inicio,cerr,canc,abiertas,ticket,feeCierre,ttfA,topCli,topRec,factTotal,conc,o});
-  let h=`<div class="head"><div><h1>Unit economics</h1><p>Resultado mensual en dólares equivalentes y rentabilidad por búsqueda.</p></div>
+  let h=`<div class="head"><div><h1>Resultados</h1><p>Resultado mensual en dólares equivalentes y rentabilidad por búsqueda.</p></div>
   <div class="seg" role="group" aria-label="Año">${years.map(yy=>`<button data-act="ecoYear" data-v="${yy}" aria-pressed="${yy===y}">${yy}</button>`).join("")}</div></div>
   <div class="kpis">${kpi("Ingresos "+y,usd(ing),`${ms.length} meses`)}${kpi("Gastos "+y,usd(gas),`${pct(ing?gas/ing:null)} de los ingresos`)}${kpi("Resultado "+y,usd(res),`margen ${pct(ing?res/ing:null)}`)}${kpi("Resultado mensual promedio",usd(ms.length?res/ms.length:null),"en US$ equivalentes")}</div>
   <section class="panel"><div class="panel-head"><h2>Por mes</h2><span class="muted">tocá una barra o un mes para ver el detalle</span></div>${barChart(P.map(p=>({label:fm(p.k),a:p.ingTot,b:p.gasTot,k:p.k})))}</section>
@@ -719,14 +723,14 @@ function vEconomics(){
     <section class="panel"><h2>Facturación por cliente</h2><div class="list">${topCli.slice(0,8).map(([c,v])=>`<div class="row"><span class="grow">${esc(c)}</span><span class="num">${usd(v)}</span><span class="muted num" style="width:44px;text-align:right">${pct(v/(factTotal||1))}</span></div>`).join("")||'<div class="empty">Sin facturas este año.</div>'}</div></section>
     <section class="panel"><h2>Facturación por recruiter</h2><div class="list">${topRec.map(([c,v])=>`<div class="row"><span class="grow">${esc(c)}</span><span class="num">${usd(v)}</span><span class="muted num" style="width:44px;text-align:right">${pct(v/(factTotal||1))}</span></div>`).join("")||'<div class="empty">Sin datos.</div>'}</div></section>
   </div>
-  <div class="note">Hasta septiembre 2026 los ingresos y gastos vienen de la planilla Economics, con todas las líneas de gasto sumadas (la planilla original omitía algunas filas en el total). Desde octubre 2026, los ingresos salen de las facturas emitidas y las comisiones de recruiters se calculan solas; los gastos se cargan en Facturas y cobros › Gastos (con recurrentes que se cargan solos cada mes).</div>`;
+  <div class="note">Hasta septiembre 2026 los ingresos y gastos vienen de la planilla Economics, con todas las líneas de gasto sumadas (la planilla original omitía algunas filas en el total). Desde octubre 2026, los ingresos salen de las facturas emitidas y las comisiones de recruiters se calculan solas; los gastos se cargan en Finanzas › Gastos (con recurrentes que se cargan solos cada mes).</div>`;
   return h;
 }
 
 // Vista de economics para la Administradora: ingresos y costos unitarios, sin gastos ni resultado.
 function vEconomicsAdm({y,years,ms,P,sum,ing,F,cierres,inicio,cerr,canc,abiertas,ticket,feeCierre,ttfA,topCli,topRec,factTotal,conc,o}){
   const u=(S.unit||{})[String(y)]||{};
-  return `<div class="head"><div><h1>Unit economics</h1><p>Ingresos mensuales en dólares equivalentes y costos por búsqueda.</p></div>
+  return `<div class="head"><div><h1>Resultados</h1><p>Ingresos mensuales en dólares equivalentes y costos por búsqueda.</p></div>
   <div class="seg" role="group" aria-label="Año">${years.map(yy=>`<button data-act="ecoYear" data-v="${yy}" aria-pressed="${yy===y}">${yy}</button>`).join("")}</div></div>
   <div class="kpis">${kpi("Ingresos "+y,usd(ing),`${ms.length} meses`)}${kpi("Ingreso mensual promedio",usd(ms.length?ing/ms.length:null),"en US$ equivalentes")}${kpi("Facturas emitidas",F.length,`${cierres.length} de cierre · ${inicio.length} de inicio y avance`)}</div>
   <section class="panel"><div class="panel-head"><h2>Ingresos por mes</h2><span class="muted">tocá una barra o un mes para ver el detalle</span></div>${barChart(P.map(p=>({label:fm(p.k),a:p.ingTot,b:0,k:p.k})),{onlyA:true})}</section>
@@ -1244,9 +1248,10 @@ document.addEventListener("change",async e=>{
 });
 document.addEventListener("input",e=>{ const el=e.target; if(el.dataset.ui && el.tagName==="INPUT"){ UI[el.dataset.ui]=el.value; clearTimeout(window.__qt); window.__qt=setTimeout(render,180); } });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("#overlay .drawer")) closeDrawer(); });
-function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); if(h.startsWith("recruiter/")) UI.recNom=decodeURIComponent(h.slice(10)); const alias={ajustes:"usuarios",historial:"historial",calidad:"calidad",conexiones:"conexiones",mejoras:"mejoras"};
+function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); if(h.startsWith("recruiter/")) UI.recNom=decodeURIComponent(h.slice(10)); if(h==="economics"){ UI.fTab="resultados"; history.replaceState(null,"","#cobros"); }
+  const alias={ajustes:"usuarios",historial:"historial",calidad:"calidad",conexiones:"conexiones",mejoras:"mejoras"};
   if(alias[h]) UI.cfgTab=alias[h]; if(h.startsWith("config/")) UI.cfgTab=h.slice(7);
-  view=h==="scorecard"?"weekly":h.startsWith("busqueda/")?"ficha":h.startsWith("recruiter/")?"recruiter":(alias[h]||h==="config"||h.startsWith("config/"))?"config":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="config") abrirTabConfig(); }
+  view=h==="economics"?"cobros":h==="scorecard"?"weekly":h.startsWith("busqueda/")?"ficha":h.startsWith("recruiter/")?"recruiter":(alias[h]||h==="config"||h.startsWith("config/"))?"config":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="config") abrirTabConfig(); }
 window.addEventListener("hashchange",route);
 
 // ---------- login ----------
@@ -1308,7 +1313,7 @@ function vMejoras(){
   else if(UI.fbEstado!=="Todos") list=list.filter(f=>f.estado===UI.fbEstado);
   const pr={Alta:0,Media:1,Baja:2};
   list=sortBy(list,f=>`${pr[f.prioridad]??1}-${9999-(+String(f.fecha||"0").replace(/-/g,"").slice(0,8)||0)}`);
-  const lab={ajustes:"Equipo y accesos",historial:"Historial de cambios",calidad:"Calidad de datos",conexiones:"Conexiones",mejoras:"Pedidos de mejora",...Object.fromEntries(VIEWS.filter(v=>v.id).map(v=>[v.id,labOf(v)]))};
+  const lab={ajustes:"Equipo y accesos",economics:"Unit economics",historial:"Historial de cambios",calidad:"Calidad de datos",conexiones:"Conexiones",mejoras:"Pedidos de mejora",...Object.fromEntries(VIEWS.filter(v=>v.id).map(v=>[v.id,labOf(v)]))};
   let h=`<div class="head"><div><h1>Pedidos de mejora</h1><p>Lo que el equipo pide cambiar del sistema. Cada pedido tiene estado y respuesta, así se ve qué se hizo.</p></div><button class="btn lemon" data-act="newFeedback">Sugerir mejora</button></div>
   <div class="toolbar"><div class="seg" role="group">${["Abiertos","Hecho","Descartado","Todos"].map(e=>`<button data-act="fbEstado" data-v="${e}" aria-pressed="${UI.fbEstado===e}">${e}</button>`).join("")}</div></div>`;
   if(!list.length) return h+`<div class="empty">No hay pedidos en esta vista. Usá “Sugerir mejora” desde cualquier pantalla.</div>`;
@@ -1900,7 +1905,7 @@ function calidadDatos(){
   const c1=BB.filter(b=>b.estado==="Cerrada"&&!b.candidatoFinal); if(c1.length) add(`${c1.length} búsquedas cerradas sin candidato final`,"Cargá quién ingresó: se usa en garantías y en el historial del cliente.",c1.map(ib));
   const c2=BB.filter(b=>["Cerrada","Cancelada"].includes(b.estado)&&!b.fechaCierre); if(c2.length) add(`${c2.length} búsquedas cerradas o canceladas sin fecha de cierre`,"Sin fecha de cierre no entran en el tiempo de cierre ni en los números del período.",c2.map(ib));
   const c3=BB.filter(b=>!b.recruiter); if(c3.length) add(`${c3.length} búsquedas sin recruiter`,"Asigná la recruiter para que cuente en la capacidad y en las comisiones.",c3.map(ib));
-  const nom=recruiters().map(r=>r.nombre); const c4=uniq(BB.filter(b=>b.recruiter&&!nom.includes(b.recruiter)).map(b=>b.recruiter)); if(c4.length) add("Recruiters en búsquedas que no están en el equipo",c4.join(", ")+". Agregalas en Equipo y accesos o renombralas.",[]);
+  const nom=recruiters().map(r=>r.nombre); const c4=uniq(BB.filter(b=>b.recruiter&&!nom.includes(b.recruiter)).map(b=>b.recruiter)); if(c4.length) add("Recruiters en búsquedas que no están en el equipo",c4.join(", ")+". Agregalas en Equipo › Editar equipo o renombralas.",[]);
   const d5=F.filter(f=>f.comisionPagada&&f.comision>0&&!f.fechaPagoComision&&!f.historico); if(d5.length) add(`${d5.length} comisiones pagadas sin fecha de pago`,"Son de antes de que existiera el campo. Desde ahora se registra sola al marcar “Comisión pagada”.",d5.map(iff),"info");
   const h=hist(); const dif=Object.keys(h).filter(k=>k>=CORTE_FACTURAS).map(k=>{ const fs=F.filter(f=>!f.historico&&ym(f.fechaEmision)===k); const a=fs.filter(f=>f.moneda!=="USD").reduce((s,f)=>s+(f.monto||0),0), u=fs.filter(f=>f.moneda==="USD").reduce((s,f)=>s+(f.monto||0),0); return {k,da:a-(h[k].ingresosARS||0),du:u-(h[k].ingresosUSD||0)}; }).filter(x=>Math.abs(x.da)>1||Math.abs(x.du)>1);
   const fmtDif=x=>`${x.da?`ARS ${x.da>0?"+":""}${nf0.format(x.da)}`:""}${x.da&&x.du?" · ":""}${x.du?`USD ${x.du>0?"+":""}${nf0.format(x.du)}`:""}`;

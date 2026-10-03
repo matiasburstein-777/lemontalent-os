@@ -60,7 +60,11 @@ Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` e
 
 ## Menú
 
-Panel, Bandeja, Weekly, Búsquedas, Candidatos, **Equipo** (resumen de recruiters + "Editar equipo": capacidad y comisión) · Clientes y leads, Facturas y cobros, Unit economics · **Configuración** (pestañas: Usuarios y accesos, Objetivos, Conexiones, Historial, Calidad de datos, Papelera y respaldo, Pedidos de mejora; cada rol ve las suyas). Las rutas viejas (`#ajustes`, `#historial`, `#calidad`, `#conexiones`, `#mejoras`) abren la pestaña correspondiente.
+- **Hoy:** Panel (con "Propuestas pendientes"), Bandeja de propuestas, Weekly.
+- **Operación:** Búsquedas, Candidatos (base de talento; el pipeline está en la ficha de cada búsqueda), Equipo (resumen de recruiters + "Editar equipo").
+- **Negocio:** Clientes y leads, **Finanzas** (`#cobros`, pestañas Por cobrar · Cobradas · Comisiones · Gastos · Resultados · Todas las facturas; Resultados es el ex Unit economics).
+- **Sistema:** Configuración (Usuarios y accesos, Objetivos, Conexiones, Historial, Calidad de datos, Papelera y respaldo, Pedidos de mejora; cada rol ve las suyas).
+- Rutas viejas que siguen andando: `#economics` → Finanzas › Resultados; `#ajustes`, `#historial`, `#calidad`, `#conexiones`, `#mejoras` → su pestaña de Configuración.
 
 ## Vista de recruiter (`#recruiters`, `#recruiter/<nombre>`)
 
