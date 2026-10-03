@@ -158,6 +158,10 @@ tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0}
 .row .grow{min-width:0;flex:1}
 .row .grow div{overflow:hidden;text-overflow:ellipsis}
 .subview{display:flex;flex-direction:column;gap:18px}.subview > .head h1{font-size:20px}
+.stepper{display:inline-flex;align-items:center;gap:4px}.stepper .btn{padding:4px 11px;font-size:15px;line-height:1}.stepper-l{font-weight:600;white-space:nowrap;padding:0 6px}button.stepper-l.volver{border:0;background:none;cursor:pointer;color:var(--ink);font:inherit;font-weight:600;text-decoration:underline;text-decoration-color:var(--lemon);text-decoration-thickness:2px;text-underline-offset:3px}
+.ini-head{flex-wrap:nowrap;align-items:flex-start}
+details.menu{position:relative}details.menu summary{list-style:none;cursor:pointer}details.menu summary::-webkit-details-marker{display:none}details.menu summary::after{content:" ▾";font-size:11px}
+.menu-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:15;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column;min-width:190px}.menu-pop .btn{justify-content:flex-start;text-align:left;border-radius:8px}
 .segcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .segcard-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .segcard-nums{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px}
@@ -236,6 +240,7 @@ td.acts{display:table-cell}td.acts > *{margin:2px 4px 2px 0;vertical-align:middl
   .head .toolbar .btn{padding:7px 12px;font-size:13.5px}
   .note{font-size:13px}
   .solo-desk{display:none}
+  .wk-bar{flex-wrap:nowrap;gap:6px}.wk-bar .seg button{padding:6px 10px}.stepper{gap:2px}.stepper .btn{padding:4px 9px}.stepper-l{padding:0 4px}
   td.num,td.r,th{white-space:nowrap}
   th,td{padding:8px 10px}
   .tablewrap input[type=text]{min-width:130px}

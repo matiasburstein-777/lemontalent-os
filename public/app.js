@@ -1133,6 +1133,7 @@ document.addEventListener("click",async e=>{
   if(t.tagName==="SELECT"||e.target.tagName==="SELECT") return;
   const a=t.dataset.act, id=t.dataset.id, v=t.dataset.v;
   if(t.tagName==="A"||t.tagName==="BUTTON") e.preventDefault();
+  t.closest("details.menu")?.removeAttribute("open");
   switch(a){
     case "closeDrawer": closeDrawer(); break;
     case "drawerSave": if(drawerSave?.save?.fn){ t.disabled=true; try{ await drawerSave.save.fn(); } finally { t.disabled=false; } } break;
@@ -1469,8 +1470,9 @@ function vInicio(){
   const tabs=[["hoy","Hoy"],canFin&&["resumen","Números"],["busquedas",`Búsquedas <span class="muted num">${D.activasSem.filter(b=>b.estado!=="En pausa"&&(!b.fechaCierre||b.fechaCierre>r.e)).length}</span>`],canFin&&["comercial","Comercial"]].filter(Boolean);
   if(!tabs.some(([v])=>v===UI.iniTab)) UI.iniTab="hoy";
   const t=UI.iniTab;
-  let h=`<div class="head"><div><h1>Inicio</h1><p class="keep">${fd(today())} · ${t==="hoy"?"lo que hay que mirar hoy":"la reunión semanal: números, avance de cada búsqueda y comercial"}</p></div>
-    <div class="toolbar">${canFin?`<button class="btn" data-act="repMensual">Reporte mensual</button>`:""}<button class="btn lemon" data-act="newBusqueda">Nueva búsqueda</button></div></div>
+  // Exportar (copiar, PDF, Excel, reporte mensual) arriba a la derecha, solo en las pestañas del weekly
+  const exp=t==="hoy"?"":`<details class="menu"><summary class="btn sm">Exportar</summary><div class="menu-pop"><button class="btn sm ghost" data-act="wkCopy">Copiar resumen</button><button class="btn sm ghost" data-act="wkPDF">PDF de la semana</button>${xbtn(t==="resumen"?"scorecard":"weekly","Excel")}${canFin?`<button class="btn sm ghost" data-act="repMensual">Reporte mensual</button>`:""}</div></details>`;
+  let h=`<div class="head ini-head"><div><h1>Inicio</h1><p class="keep">${fd(today())}</p></div>${exp}</div>
   <div class="toolbar"><div class="seg" role="tablist">${tabs.map(([v,l])=>`<button role="tab" data-act="iniTab" data-v="${v}" aria-pressed="${t===v}" aria-selected="${t===v}">${l}</button>`).join("")}</div></div>`;
   if(t==="hoy") return h+vPanel();
   UI.wkTab=t; return h+vWeekly();
@@ -1479,12 +1481,15 @@ function vWeekly(){
   const D=wkData(); const {r}=D; const esActual=r.s===weekStart();
   if(!canFin) UI.wkTab="busquedas"; else if(!["resumen","busquedas","comercial"].includes(UI.wkTab)) UI.wkTab="resumen";
   const tab=UI.wkTab, mes=tab==="resumen"&&UI.scPer==="mes";
+  // Período en una sola línea: ‹ 28 sep – 4 oct ›, con "volver a hoy" si no es el actual
+  const dm = iso => { const [,m,d]=iso.split("-"); return `${+d}\u00a0${MES[+m-1]}`; };
   let nav;
-  if(mes){ const per=scPeriodos(); const k=per[per.length-1].k;
-    nav=`<span class="muted">${fm(k)}${!(UI.mesOff||0)?" · mes actual":""}</span><button class="btn sm" data-act="mesNav" data-v="1" aria-label="Mes anterior">← Anterior</button>${UI.mesOff?`<button class="btn sm" data-act="mesNav" data-v="0">Este mes</button>`:""}<button class="btn sm" data-act="mesNav" data-v="-1" ${UI.mesOff?"":"disabled"} aria-label="Mes siguiente">Siguiente →</button>`; }
-  else nav=`<span class="muted">${fd(r.s)} al ${fd(r.e)}${esActual?" · semana actual":""}</span><button class="btn sm" data-act="wkNav" data-v="-7" aria-label="Semana anterior">← Anterior</button>${esActual?"":`<button class="btn sm" data-act="wkNav" data-v="0">Esta semana</button>`}<button class="btn sm" data-act="wkNav" data-v="7" ${esActual?"disabled":""} aria-label="Semana siguiente">Siguiente →</button>`;
+  if(mes){ const per=scPeriodos(); const k=per[per.length-1].k, act=!(UI.mesOff||0);
+    nav=`<div class="stepper"><button class="btn sm" data-act="mesNav" data-v="1" aria-label="Mes anterior">‹</button>${act?`<span class="stepper-l">${fm(k)}</span>`:`<button class="stepper-l volver" data-act="mesNav" data-v="0" title="Volver al mes actual">${fm(k)}</button>`}<button class="btn sm" data-act="mesNav" data-v="-1" ${act?"disabled":""} aria-label="Mes siguiente">›</button></div>`; }
+  else nav=`<div class="stepper"><button class="btn sm" data-act="wkNav" data-v="-7" aria-label="Semana anterior">‹</button>${esActual?`<span class="stepper-l">${dm(r.s)} – ${dm(r.e)}</span>`:`<button class="stepper-l volver" data-act="wkNav" data-v="0" title="Volver a esta semana">${dm(r.s)} – ${dm(r.e)}</button>`}<button class="btn sm" data-act="wkNav" data-v="7" ${esActual?"disabled":""} aria-label="Semana siguiente">›</button></div>`;
+  const perSeg = tab==="resumen" ? `<div class="seg" role="group" aria-label="Período"><button data-act="scPer" data-v="semana" aria-pressed="${UI.scPer!=="mes"}">Semana</button><button data-act="scPer" data-v="mes" aria-pressed="${UI.scPer==="mes"}">Mes</button></div>` : "";
   const tabs=[canFin&&["resumen","Resumen"],["busquedas",`Búsquedas <span class="muted num">${D.activasSem.filter(b=>b.estado!=="En pausa"&&(!b.fechaCierre||b.fechaCierre>r.e)).length}</span>`],canFin&&["comercial","Comercial"]].filter(Boolean);
-  let h=`<div class="toolbar wk-bar">${nav}<span class="grow"></span><button class="btn sm ghost" data-act="wkCopy">Copiar resumen</button><button class="btn sm ghost" data-act="wkPDF">PDF</button>${xbtn(tab==="resumen"?"scorecard":"weekly","Excel")}</div>`;
+  let h=`<div class="toolbar wk-bar">${perSeg}${nav}</div>`;
   if(tab==="resumen") return h+wkResumen();
   if(tab==="comercial") return h+wkComercial(D);
   return h+wkBusquedas(D);
@@ -1549,8 +1554,7 @@ function wkResumen(){
   UI.scPer ||= "semana";
   const per=scPeriodos(), M=scMetricas();
   const secs=[]; M.forEach(m=>{ if(m.sec) secs.push({t:m.sec,ms:[]}); else if(secs.length) secs[secs.length-1].ms.push(m); });
-  let h=`<div class="toolbar"><div class="seg" role="group" aria-label="Período"><button data-act="scPer" data-v="semana" aria-pressed="${UI.scPer==="semana"}">Semana</button><button data-act="scPer" data-v="mes" aria-pressed="${UI.scPer==="mes"}">Mes</button></div>
-    <span class="muted" style="font-size:12.5px">Compara contra ${UI.scPer==="mes"?"el mes anterior; la línea muestra los últimos 8 meses":"la semana anterior; la línea muestra las últimas 8 semanas"}. * aproximado.</span></div>`;
+  let h=`<div class="muted" style="font-size:12.5px">Compara contra ${UI.scPer==="mes"?"el mes anterior; la línea muestra los últimos 8 meses":"la semana anterior; la línea muestra las últimas 8 semanas"}. * aproximado.</div>`;
   if(canFin){ const q=calidadDatos(); if(q.length) h+=`<div class="note" style="margin-bottom:12px">Hay ${q.length} puntos de calidad de datos que pueden afectar estos números. <a href="#calidad">Revisarlos</a></div>`; }
   const tabla=ms=>`<details class="more"><summary>Ver evolución en tabla</summary><div class="tablewrap"><table class="sc-tab"><thead><tr><th>Métrica</th>${per.map((p,i)=>`<th class="r${i===per.length-1?" cur":""}">${esc(p.l)}</th>`).join("")}</tr></thead><tbody>
     ${ms.map(m=>`<tr><td>${esc(m.l)}${m.n?` <span class="muted" style="font-size:11px">(${esc(m.n)})</span>`:""}</td>${per.map((p,i)=>`<td class="r num${i===per.length-1?" cur":""}">${scFmt(m.f(p),m.fmt)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>`;
