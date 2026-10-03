@@ -1184,6 +1184,7 @@ document.addEventListener("click",async e=>{
       break; }
     case "undo": { const f=undoFn; undoFn=null; $("#toastHost").innerHTML=""; if(f) await f(); break; }
     case "gMes": UI.gMes=v; render(); break;
+    case "scDet": drawerMetrica(v); break;
     case "cfgTab": UI.cfgTab=v; history.replaceState(null,"","#config/"+v); abrirTabConfig(); render(); break;
     case "editEquipo": drawerEquipo(); break;
     case "openRecruiter": location.hash="#recruiter/"+encodeURIComponent(id); break;
@@ -1546,7 +1547,8 @@ function scCard(m,per){
   let meta="";
   if(o!=null&&ok(v)){ const cumple=m.dir<0?v<=o:v>=o; meta=`<span class="pill ${cumple?"ok":"warn"} plain">obj. ${scFmt(o,m.fmt)}</span>`; }
   const meter=o&&ok(v)&&m.dir>0?`<div class="meter${v>=o?" goal":""}" title="${nf0.format(v/o*100)}% del objetivo"><i style="width:${Math.min(100,Math.max(2,v/o*100))}%"></i></div>`:"";
-  return `<div class="sc-card${m.dest?" dest":""}" ${m.n?`title="${esc(m.n)}"`:""}><span class="label">${esc(m.l)}${m.n?" *":""}</span>
+  const det=m.it||m.go;
+  return `<div class="sc-card${m.dest?" dest":""}${det?" click":""}"${det?` data-act="scDet" data-v="${esc(m.l)}" role="button" tabindex="0"`:""} ${m.n?`title="${esc(m.n)}"`:""}><span class="label">${esc(m.l)}${m.n?" *":""}</span>
     <div class="sc-v"><span class="v">${scFmt(v,m.fmt)}</span>${delta}</div>${meter}
     <div class="sc-foot">${spark(vs)}${meta}</div></div>`;
 }
@@ -1896,7 +1898,55 @@ function scMetricas(){
     {l:"Recruiters activas",dir:0,f:r=>r.e>=today()?recs.length:null,n:"solo el período actual"},
     ...recs.map(x=>({l:"Activas · "+x.nombre,rec:true,f:r=>BB.filter(b=>vivaAl(b,r.e)&&b.recruiter===x.nombre).length})),
   ];
+  // Detalle de cada número: qué registros lo componen en el período (se abre al tocar la tarjeta)
+  const vivas=r=>BB.filter(b=>vivaAl(b,r.e)), feeTxt=b=>{ const v=feeDe(b); return canFin&&v?`fee ${short(v)}`:""; };
+  const IB=(b,x)=>["b",b,x], IL=l=>["l",l], IF=f=>["f",f], IP=p=>["p",p];
+  const IT={
+    "Leads nuevos":r=>L.filter(l=>inRange(l.fechaPrimerContacto,r)).map(IL),
+    "Primer contacto comercial":r=>L.filter(l=>inRange(l.fechaPrimerContacto,r)&&!["Identificado","Nuevo"].includes(l.etapa)).map(IL),
+    "Re-contactos":r=>L.filter(l=>inRange(l.fechaUltimoContacto,r)&&(l.fechaPrimerContacto||"")<r.s).map(IL),
+    "Propuestas abiertas":r=>L.filter(l=>l.etapa==="Propuesta enviada"&&(l.fechaUltimoContacto||l.fechaPrimerContacto||"")<=r.e).map(IL),
+    "Clientes nuevos":r=>BB.filter(b=>inRange(b.fechaInicio,r)&&primeraBusq[keyN(b.cliente)]===b.fechaInicio).map(b=>IB(b,"primera búsqueda del cliente")),
+    "Búsquedas nuevas":r=>BB.filter(b=>inRange(b.fechaInicio,r)).map(b=>IB(b)),
+    "Clientes con búsquedas activas":r=>sortBy(vivas(r),b=>b.cliente).map(b=>IB(b)),
+    "Clientes que se desactivaron":r=>{ const desp=clientesConBusq(r.e); return BB.filter(b=>vivaAl(b,addDays(r.s,-1))&&!desp.has(keyN(b.cliente))).map(b=>IB(b,"era su última búsqueda activa")); },
+    "Facturado (ARS eq.)":r=>emit(r).map(IF), "Facturado (US$ eq.)":r=>emit(r).map(IF), "Ticket promedio facturado":r=>emit(r).map(IF),
+    "Cobrado (US$ eq.)":r=>F.filter(f=>f.cobrada&&inRange(f.fechaCobro,r)).map(IF),
+    "Fee promedio búsquedas cerradas":r=>BB.filter(b=>b.estado==="Cerrada"&&inRange(b.fechaCierre,r)).map(b=>IB(b,feeTxt(b))),
+    "Fee promedio búsquedas activas":r=>vivas(r).map(b=>IB(b,feeTxt(b)||"sin fee cargado")),
+    "Total fees en búsquedas activas":r=>sortBy(vivas(r),b=>-(feeDe(b)||0)).map(b=>IB(b,feeTxt(b)||"sin fee cargado")),
+    "Búsquedas cerradas con éxito":r=>BB.filter(b=>b.estado==="Cerrada"&&inRange(b.fechaCierre,r)).map(b=>IB(b,b.candidatoFinal?"ingresó "+b.candidatoFinal:"")),
+    "Búsquedas canceladas":r=>BB.filter(b=>b.estado==="Cancelada"&&inRange(b.fechaCierre,r)).map(b=>IB(b)),
+    "Tiempo de cierre (días)":r=>sortBy(BB.filter(b=>b.estado==="Cerrada"&&inRange(b.fechaCierre,r)&&ttf(b)!=null),b=>-ttf(b)).map(b=>IB(b,`${ttf(b)} días`)),
+    "Candidatos presentados":r=>P.filter(p=>inRange(p.fecha,r)&&["Presentado","Entrevista cliente","Oferta","Contratado"].includes(p.etapa)).map(IP),
+    "Reemplazos por garantía":r=>BB.filter(b=>b.garantia&&inRange(b.fechaInicio,r)).map(b=>IB(b)),
+    "Antigüedad promedio de las abiertas (días)":r=>sortBy(vivas(r),b=>b.fechaInicio||"").map(b=>IB(b,`${days(b.fechaInicio,r.e)} días`)),
+    "Abiertas hace más de 30 días":r=>sortBy(vivas(r).filter(b=>days(b.fechaInicio,r.e)>30),b=>b.fechaInicio||"").map(b=>IB(b,`${days(b.fechaInicio,r.e)} días`)),
+    "Estancadas (+7 días sin actualizar)":r=>activas().filter(b=>(days(lastTouch(b))??99)>7).map(b=>IB(b,`sin novedades hace ${days(lastTouch(b))??"—"} días`)),
+    "Búsquedas activas":r=>vivas(r).map(b=>IB(b)), "Utilización de capacidad":r=>vivas(r).map(b=>IB(b)),
+    "Búsquedas en pausa":r=>BB.filter(b=>b.estado==="En pausa").map(b=>IB(b)),
+  };
+  const GO={"Costos del mes (US$ eq.)":r=>drawerMes(r.k),"Resultado del mes (US$ eq.)":r=>drawerMes(r.k),"Recruiters activas":()=>{ location.hash="#recruiters"; }};
+  M.forEach(m=>{ if(IT[m.l]) m.it=IT[m.l]; if(GO[m.l]) m.go=GO[m.l]; });
   return M.filter(m=>(!m.fin||canFin)&&(!m.socio||isAdmin)&&(!m.mes||esMes));
+}
+// Panel lateral con los registros que forman un número del período actual
+function drawerMetrica(label){
+  const m=scMetricas().find(x=>x.l===label); if(!m) return;
+  const per=scPeriodos(), r=per[per.length-1];
+  if(m.go){ m.go(r); return; }
+  if(!m.it) return;
+  const items=m.it(r);
+  const fila=([k,o,x])=>{
+    if(k==="b") return `<div class="row click" data-act="openBusqueda" data-id="${o.id}"><div class="grow" style="min-width:0"><b>${esc(o.puesto)}</b><div class="muted" style="font-size:12px">${esc(o.cliente)}${o.recruiter?" · "+esc(o.recruiter):""}${x?" · "+esc(x):""}</div></div>${pillEstado(o.estado)}</div>`;
+    if(k==="l") return `<div class="row click" data-act="openLead" data-id="${o.id}"><div class="grow" style="min-width:0"><b>${esc(o.empresa)}</b><div class="muted" style="font-size:12px">${esc([o.contacto,o.fechaUltimoContacto||o.fechaPrimerContacto?fd(o.fechaUltimoContacto||o.fechaPrimerContacto):""].filter(Boolean).join(" · "))}</div></div>${pillLead(o.etapa)}</div>`;
+    if(k==="f") return `<div class="row click" data-act="openFactura" data-id="${o.id}"><div class="grow" style="min-width:0"><b>${esc(o.cliente||"")}</b><div class="muted" style="font-size:12px">${esc(o.concepto||"")} · ${fd(o.fechaEmision)}</div></div><div style="text-align:right"><div class="num">${money(o.monto,o.moneda)}</div>${o.cobrada?'<span class="pill ok">Cobrada</span>':'<span class="pill warn">Por cobrar</span>'}</div></div>`;
+    const c=S.candidatos[o.candidatoId]||{}, b=S.busquedas[o.busquedaId]||{};
+    return `<div class="row click" data-act="openCandidato" data-id="${o.candidatoId}"><div class="grow" style="min-width:0"><b>${esc(c.nombre||"Candidato")}</b><div class="muted" style="font-size:12px">${esc(b.puesto||"")} · ${esc(b.cliente||"")} · ${fd(o.fecha)}</div></div>${pillEtapa(o.etapa)}</div>`;
+  };
+  const body=`<div class="kpis">${kpi(m.l,scFmt(m.f(r),m.fmt),`${r.l}${m.n?" · "+m.n:""}`)}</div>
+    <div class="section"><span class="label">${items.length} ${items.length===1?"registro":"registros"}</span>${items.length?`<div class="list">${items.map(fila).join("")}</div>`:'<div class="muted" style="font-size:13px">No hay registros en este período.</div>'}</div>`;
+  openDrawer(m.l,UI.scPer==="mes"?`Mes: ${r.l}`:`Semana del ${fd(r.s)} al ${fd(r.e)}`,body,{});
 }
 const scFmt=(v,f)=> v==null||isNaN(v)?"—": f==="ars"?short(v): f==="usd"?usd(v): f==="pct"?pct(v): nf0.format(v);
 function datosScorecard(){ const per=scPeriodos(); return scMetricas().filter(m=>!m.sec).map(m=>Object.fromEntries([["Métrica",m.l.trim()],...per.map(p=>[p.l,(()=>{const v=m.f(p); return v==null||isNaN(v)?"":(m.fmt==="pct"?Math.round(v*100)+"%":Math.round(v));})()])])); }
