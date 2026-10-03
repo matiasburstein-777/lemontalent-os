@@ -1,0 +1,25 @@
+{
+  "name": "lemon-talent-os",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "db:push": "drizzle-kit push --force",
+    "db:seed": "node scripts/seed.js",
+    "setup": "npm run db:push && npm run db:seed"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "connect-pg-simple": "^10.0.0",
+    "drizzle-orm": "^0.44.5",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.4"
+  },
+  "engines": { "node": ">=20" }
+}

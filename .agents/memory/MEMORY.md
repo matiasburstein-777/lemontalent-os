@@ -1,0 +1,1 @@
+- [Publish schema changes](publish-schema-changes.md) — keep `db:push` out of deployment builds; Replit Publish owns production schema migration.
