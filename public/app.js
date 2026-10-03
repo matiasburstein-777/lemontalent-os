@@ -28,8 +28,9 @@ const ym = iso => (iso||"").slice(0,7);
 const curYM = () => today().slice(0,7);
 const nf0 = new Intl.NumberFormat("es-AR",{maximumFractionDigits:0});
 const nf1 = new Intl.NumberFormat("es-AR",{maximumFractionDigits:1});
-const ars = v => v==null||isNaN(v) ? "—" : "$ " + nf0.format(v);
-const usd = v => v==null||isNaN(v) ? "—" : "US$ " + nf0.format(v);
+// Espacio no separable: el signo y el número nunca quedan en líneas distintas
+const ars = v => v==null||isNaN(v) ? "—" : "$\u00a0" + nf0.format(v);
+const usd = v => v==null||isNaN(v) ? "—" : "US$\u00a0" + nf0.format(v);
 const money = (v,m) => m==="USD" ? usd(v) : ars(v);
 const short = v => { if(v==null||isNaN(v)) return "—"; const a=Math.abs(v); return a>=1e6 ? nf1.format(v/1e6)+" M" : a>=1e3 ? nf1.format(v/1e3)+" k" : nf0.format(v); };
 const pct = v => v==null||!isFinite(v) ? "—" : nf0.format(v*100)+"%";
@@ -1035,7 +1036,7 @@ window.addEventListener("hashchange",route);
 // ---------- login ----------
 function showLogin(){
   $(".rail").hidden=true; closeDrawer();
-  $("#main").innerHTML=`<form class="login" id="loginForm"><div class="brand"><div class="brand-mark" aria-hidden="true">LT</div><div><b>Lemon Talent</b><small>Sistema interno</small></div></div>
+  $("#main").innerHTML=`<form class="login" id="loginForm"><div class="brand"><img class="brand-mark" src="/logo.svg" alt="" width="40" height="40"><div><b>Lemon Talent</b><small>Sistema interno</small></div></div>
   <section class="panel"><h2>Ingresar</h2>
   <div class="f"><label for="li-e">Email</label><input id="li-e" type="text" autocomplete="username" inputmode="email"></div>
   <div class="f"><label for="li-p">Contraseña</label><input id="li-p" type="password" autocomplete="current-password"></div>
@@ -1394,15 +1395,15 @@ function printDoc(title,body){
   const w=window.open("","_blank"); if(!w){ toast("Permití las ventanas emergentes para generar el PDF.",true); return; }
   w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
   @page{size:A4;margin:16mm 14mm}*{box-sizing:border-box}body{font:12.5px/1.5 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#1b201b;margin:0;padding:24px}
-  h1{font-size:22px;margin:0 0 2px}h2{font-size:14.5px;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #EAD64A}h3{font-size:13px;margin:12px 0 4px}
+  h1{font-size:22px;margin:0 0 2px}h2{font-size:14.5px;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #D9E151}h3{font-size:13px;margin:12px 0 4px}
   .muted{color:#667063}.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:1px solid #dde1d8;padding-bottom:12px;margin-bottom:6px}
-  .brand{font-weight:700;font-size:13px}.brand i{display:inline-block;width:10px;height:10px;background:#EAD64A;border-radius:2px;margin-right:6px}
+  .brand{font-weight:700;font-size:13px;display:flex;align-items:center;gap:7px}.brand img{width:22px;height:22px}
   table{width:100%;border-collapse:collapse;margin:6px 0}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e6e9e2;vertical-align:top}th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#667063}
   .r{text-align:right}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}.kpi{border:1px solid #dde1d8;border-radius:8px;padding:8px 10px}.kpi b{display:block;font-size:17px}.kpi span{font-size:11px;color:#667063}
   .tag{display:inline-block;border:1px solid #dde1d8;border-radius:999px;padding:1px 8px;font-size:11px;margin:1px 2px 1px 0}p{margin:4px 0}.foot{margin-top:28px;font-size:11px;color:#667063;border-top:1px solid #dde1d8;padding-top:8px}
   .noprint{margin-bottom:16px}@media print{.noprint{display:none}body{padding:0}}tr{page-break-inside:avoid}
-  </style></head><body><div class="noprint"><button onclick="print()" style="font:inherit;padding:8px 14px;border-radius:6px;border:0;background:#EAD64A;font-weight:600;cursor:pointer">Guardar como PDF / Imprimir</button></div>
-  <div class="top"><div><div class="brand"><i></i>Lemon Talent</div><h1>${esc(title)}</h1></div><div class="muted">${fd(today())}</div></div>${body}
+  </style></head><body><div class="noprint"><button onclick="print()" style="font:inherit;padding:8px 14px;border-radius:6px;border:0;background:#D9E151;font-weight:600;cursor:pointer">Guardar como PDF / Imprimir</button></div>
+  <div class="top"><div><div class="brand"><img src="${location.origin}/logo.svg" alt="">Lemon Talent</div><h1>${esc(title)}</h1></div><div class="muted">${fd(today())}</div></div>${body}
   <div class="foot">Lemon Talent · Reporte generado el ${new Date().toLocaleString("es-AR")}</div></body></html>`);
   w.document.close(); setTimeout(()=>{ try{w.focus(); w.print();}catch(e){} },400);
 }

@@ -128,18 +128,18 @@ export function registerSeguimiento(app, { pool, auth }) {
 }
 
 function pagina(titulo, body) {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(titulo)} · Lemon Talent</title><style>
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(titulo)} · Lemon Talent</title><link rel="icon" href="/logo.svg" type="image/svg+xml"><style>
   *{box-sizing:border-box}body{font:15px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#1b201b;background:#F4F5F1;margin:0}
   main{max-width:820px;margin:0 auto;padding:28px 16px 40px}.card{background:#fff;border:1px solid #DDE1D8;border-radius:12px;padding:22px 22px 26px}
-  .brand{font-weight:700;font-size:14px}.brand i{display:inline-block;width:11px;height:11px;background:#EAD64A;border-radius:2px;margin-right:7px}
-  h1{font-size:24px;margin:10px 0 2px}h2{font-size:16px;margin:26px 0 10px;padding-bottom:5px;border-bottom:2px solid #EAD64A}
+  .brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:9px}.brand img{width:32px;height:32px}
+  h1{font-size:24px;margin:10px 0 2px}h2{font-size:16px;margin:26px 0 10px;padding-bottom:5px;border-bottom:2px solid #D9E151}
   .muted{color:#626B60}.small{font-size:12.5px}p{margin:6px 0}
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}.kpi{border:1px solid #DDE1D8;border-radius:9px;padding:10px 12px}.kpi span{font-size:12px;color:#626B60}.kpi b{display:block;font-size:19px}
   .bar{display:grid;grid-template-columns:150px minmax(0,1fr) 36px;gap:10px;align-items:center;font-size:14px;margin:6px 0}.bar b{text-align:right}
-  .track{height:11px;background:#ECEEE8;border-radius:6px;position:relative;overflow:hidden}.track i{position:absolute;inset:0 auto 0 0;background:#EAD64A;border-radius:6px}
+  .track{height:11px;background:#ECEEE8;border-radius:6px;position:relative;overflow:hidden}.track i{position:absolute;inset:0 auto 0 0;background:#D9E151;border-radius:6px}
   table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid #E6E9E2;vertical-align:top}th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:#626B60}
   .foot{margin-top:18px;font-size:12px;color:#626B60;text-align:center}
   @media (max-width:520px){.bar{grid-template-columns:110px minmax(0,1fr) 30px}.card{padding:18px 14px}}
-  </style></head><body><main><div class="card"><div class="brand"><i></i>Lemon Talent</div><h1>${esc(titulo)}</h1>${body}</div>
+  </style></head><body><main><div class="card"><div class="brand"><img src="/logo.svg" alt="">Lemon Talent</div><h1>${esc(titulo)}</h1>${body}</div>
   <div class="foot">Información actualizada al ${fd(hoyBA())}. Link privado: no lo compartas fuera de tu equipo.</div></main></body></html>`;
 }
