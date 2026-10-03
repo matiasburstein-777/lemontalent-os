@@ -3,3 +3,6 @@ node_modules/
 # Datos reales de clientes, candidatos y facturación: nunca a GitHub.
 data/
 drizzle/
+zipFile.zip
+*.zip
+.github-sync
