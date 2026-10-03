@@ -160,6 +160,7 @@ const VIEWS = [
   {id:"weekly",label:"Weekly"},
   {id:"busquedas",label:"Búsquedas",cnt:()=>activas().length},
   {id:"candidatos",label:"Candidatos",cnt:()=>vals(S.candidatos).length},
+  {id:"recruiters",label:()=>canFin?"Recruiters":"Mi panel"},
   {sep:"Negocio",admin:true},
   {id:"crm",label:"Clientes y leads",admin:true,cnt:()=>vals(S.leads).filter(l=>!["Ganado","Perdido"].includes(l.etapa)).length},
   {id:"cobros",label:"Facturas y cobros",admin:true,cnt:()=>vals(S.facturas).filter(f=>!f.cobrada).length},
@@ -171,9 +172,10 @@ const VIEWS = [
   {id:"conexiones",label:"Conexiones"},
   {id:"mejoras",label:"Pedidos de mejora",cnt:()=>vals(S.feedback).filter(f=>f.estado==="Pendiente"||f.estado==="En curso").length},
 ];
+const labOf = v => typeof v.label==="function" ? v.label() : v.label;
 function renderNav(){
   $("#nav").innerHTML = VIEWS.filter(v=>!v.admin||canFin).map(v=> v.sep ? `<div class="nav-sep">${v.sep}</div>` :
-    `<a href="#${v.id}" data-view="${v.id}" ${view===v.id?'aria-current="page"':""}>${v.label}${v.cnt?`<span class="cnt">${v.cnt()}</span>`:""}</a>`).join("");
+    `<a href="#${v.id}" data-view="${v.id}" ${view===v.id||(v.id==="recruiters"&&view==="recruiter")?'aria-current="page"':""}>${labOf(v)}${v.cnt?`<span class="cnt">${v.cnt()}</span>`:""}</a>`).join("");
   $("#role").textContent = isAdmin ? "Socio · acceso completo" : isAdm ? "Administradora · operación y facturación" : "Recruiter · operación"; $("#who").textContent = me.nombre||"";
 }
 let raf=0;
@@ -182,7 +184,7 @@ function render(){
   renderNav();
   const m=$("#main");
   if((["crm","cobros","economics","ajustes","propuestas","calidad"].includes(view)) && !canFin){ view="panel"; }
-  const fn = {ficha:vFicha,panel:vPanel,busquedas:vBusquedas,candidatos:vCandidatos,crm:vCrm,cobros:vCobros,economics:vEconomics,ajustes:vAjustes,mejoras:vMejoras,propuestas:vPropuestas,conexiones:vConexiones,weekly:vWeekly,historial:vHistorial,calidad:vCalidad}[view] || vPanel;
+  const fn = {recruiters:vRecruiters,recruiter:vRecruiter,ficha:vFicha,panel:vPanel,busquedas:vBusquedas,candidatos:vCandidatos,crm:vCrm,cobros:vCobros,economics:vEconomics,ajustes:vAjustes,mejoras:vMejoras,propuestas:vPropuestas,conexiones:vConexiones,weekly:vWeekly,historial:vHistorial,calidad:vCalidad}[view] || vPanel;
   const sx=window.scrollX, sy=window.scrollY;
   const active=document.activeElement; const aid=active&&active.id; const sel=aid&&active.selectionStart;
   m.innerHTML = fn();
@@ -206,7 +208,7 @@ const gv = id => { const el=document.getElementById(id); return el ? (el.type===
 const gn = id => { const el=document.getElementById(id); if(el&&el.type==="number"){ return el.value===""?null:(isNaN(Number(el.value))?null:Number(el.value)); } const v=gv(id); if(v===""||v==null) return null; const n=Number(String(v).replace(/\./g,"").replace(",",".")); return isNaN(n)?null:n; };
 const datalist = (id,list) => `<datalist id="${id}">${list.map(x=>`<option value="${esc(x)}"></option>`).join("")}</datalist>`;
 
-function barChart(rows,{h=220,onlyA=false}={}){
+function barChart(rows,{h=220,onlyA=false,la="Ingresos (US$ eq.)",lb="Gastos (US$ eq.)",fmt=usd}={}){
   // rows: [{label, a, b}] a = ingresos, b = gastos (USD)
   if(!rows.length) return "";
   const W=760, H=h, padL=48, padB=26, padT=10, padR=8;
@@ -218,12 +220,12 @@ function barChart(rows,{h=220,onlyA=false}={}){
   const bw=(W-padL-padR)/rows.length;
   let g=""; for(let t=0;t<=top+1e-9;t+=nice){ g+=`<line x1="${padL}" x2="${W-padR}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${padL-6}" y="${y(t)+4}" text-anchor="end">${short(t)}</text>`; }
   const bars=rows.map((r,i)=>{ const x=padL+i*bw; const w=Math.max(4,bw*0.32);
-    return `<g${r.k?` class="click" data-act="openMes" data-id="${r.k}"`:""}><rect x="${x}" y="${padT}" width="${bw}" height="${H-padT-padB}" fill="transparent"/><title>${esc(r.label)} · ingresos ${usd(r.a)} · gastos ${usd(r.b)}</title>
+    return `<g${r.k?` class="click" data-act="openMes" data-id="${r.k}"`:""}><rect x="${x}" y="${padT}" width="${bw}" height="${H-padT-padB}" fill="transparent"/><title>${esc(r.label)} · ${esc(la)}: ${fmt(r.a)}${onlyA?"":` · ${esc(lb)}: ${fmt(r.b)}`}</title>
       <rect x="${x+bw*0.16}" y="${y(r.a)}" width="${w}" height="${Math.max(0,H-padB-y(r.a))}" rx="2" fill="var(--lemon)"/>
       <rect x="${x+bw*0.16+w+2}" y="${y(r.b)}" width="${w}" height="${Math.max(0,H-padB-y(r.b))}" rx="2" fill="var(--muted)" opacity=".55"/>
       <text x="${x+bw/2}" y="${H-8}" text-anchor="middle">${esc(r.label)}</text></g>`; }).join("");
-  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ingresos y gastos por mes">${g}${bars}</svg></div>
-  <div class="legend"><span><i style="background:var(--lemon)"></i>Ingresos (US$ eq.)</span>${onlyA?"":'<span><i style="background:var(--muted);opacity:.55"></i>Gastos (US$ eq.)</span>'}</div>`;
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(la)} por mes">${g}${bars}</svg></div>
+  <div class="legend"><span><i style="background:var(--lemon)"></i>${esc(la)}</span>${onlyA?"":`<span><i style="background:var(--muted);opacity:.55"></i>${esc(lb)}</span>`}</div>`;
 }
 
 // ================= PANEL =================
@@ -246,7 +248,7 @@ function vPanel(){
   // carga por recruiter
   const load=recs.map(r=>({r,n:act.filter(b=>b.recruiter===r.nombre).length}));
   const sinAsignar=act.filter(b=>!b.recruiter||!recs.some(r=>r.nombre===b.recruiter)).length;
-  let bars=load.map(({r,n})=>`<div class="bar"><span>${esc(r.nombre)}</span><div class="track${n>(+r.capacidad||4)?" over":""}"><i style="width:${Math.min(100,n/Math.max(1,+r.capacidad||4)*100)}%"></i></div><span class="num muted">${n} / ${r.capacidad||4}</span></div>`).join("");
+  let bars=load.map(({r,n})=>`<div class="bar"><span>${canFin?`<a href="#recruiter/${encodeURIComponent(r.nombre)}">${esc(r.nombre)}</a>`:esc(r.nombre)}</span><div class="track${n>(+r.capacidad||4)?" over":""}"><i style="width:${Math.min(100,n/Math.max(1,+r.capacidad||4)*100)}%"></i></div><span class="num muted">${n} / ${r.capacidad||4}</span></div>`).join("");
   if(sinAsignar) bars+=`<div class="bar"><span class="muted">Otras / sin asignar</span><div class="track"><i style="width:${Math.min(100,sinAsignar*20)}%;background:var(--muted)"></i></div><span class="num muted">${sinAsignar}</span></div>`;
   // atención
   const att=[];
@@ -402,7 +404,7 @@ function vFicha(){
   const dTerna=b.fechaPrimeraTerna&&b.fechaInicio?days(b.fechaInicio,b.fechaPrimeraTerna):null;
   const ti=tiemposEtapa(ps), de=descartes(ps);
   let h=`<div class="head"><div><a href="#busquedas" class="muted" style="font-size:13px">← Búsquedas</a><h1>${esc(b.puesto)}</h1>
-    <p class="keep" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${esc(b.cliente)} · ${esc(b.recruiter||"Sin recruiter")}${b.prioridad?` · Prioridad ${esc(b.prioridad)}`:""} ${pillEstado(b.estado)} ${pillSalud(sa)}</p></div>
+    <p class="keep" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${esc(b.cliente)} · ${b.recruiter&&(canFin||keyN(b.recruiter)===keyN(miNombreRec()))?`<a href="#recruiter/${encodeURIComponent(b.recruiter)}">${esc(b.recruiter)}</a>`:esc(b.recruiter||"Sin recruiter")}${b.prioridad?` · Prioridad ${esc(b.prioridad)}`:""} ${pillEstado(b.estado)} ${pillSalud(sa)}</p></div>
     <div class="toolbar"><button class="btn" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button><button class="btn" data-act="addPost" data-id="${b.id}">Sumar candidato</button><button class="btn" data-act="editBusqueda" data-id="${b.id}">Editar</button><button class="btn" data-act="repCliente" data-id="${b.id}">Reporte PDF</button><button class="btn lemon" data-act="linkCliente" data-id="${b.id}">Link para el cliente</button></div></div>`;
   if(sa.motivos.length) h+=`<div class="panel cal ${sa.nivel}"><b>${SALUD_LAB[sa.nivel]}</b><span>${esc(sa.motivos.map(m=>m[0].toUpperCase()+m.slice(1)).join(" · "))}.</span></div>`;
   h+=`<div class="kpis">${kpi(b.estado==="Activa"?"Días en curso":"Duración",d??"—",b.fechaInicio?`inicio ${fd(b.fechaInicio)}`:"")}${kpi("Candidatos",ps.length,`${vivos.length} vivos · ${de.n} descartados`)}${kpi("Presentados al cliente",pres.length,`primera terna: ${terna}${dTerna!=null?` (día ${dTerna})`:""}`)}${kpi("Último movimiento",hace(sm),ultimoMov(b,ps)?fd(ultimoMov(b,ps)):"")}</div>`;
@@ -442,6 +444,89 @@ async function drawerLink(bid){
     try{ await api("/api/links/"+encodeURIComponent(bid),{method:"POST",body:JSON.stringify({resumen:gv("lk-res"),proximos:gv("lk-pp"),mostrarCandidatos:gv("lk-cand")})}); toast(l?"Link actualizado":"Link creado"); drawerLink(bid); }
     catch(e){ if(e.code!==401) toast(e.message||"No se pudo guardar.",true); }
   };
+}
+
+// ================= RECRUITERS =================
+// Nombre de recruiter del usuario logueado (lo resuelve el servidor contra Equipo)
+const miNombreRec = () => S.yoRec || me.nombre || "";
+const esDe = (b,n) => keyN(b.recruiter)===keyN(n);
+function rangoPer(per){
+  if(per==="todo") return {s:"0000-01-01",e:"9999-12-31",lab:"Todo el historial"};
+  if(/^\d{4}$/.test(per)) return {s:`${per}-01-01`,e:`${per}-12-31`,lab:per};
+  return {s:addDays(today(),-365),e:today(),lab:"Últimos 12 meses"};
+}
+const enR = (d,r) => !!d && d>=r.s && d<=r.e;
+const prom = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+function statsRec(n,r){
+  const mine=B().filter(b=>esDe(b,n)), act=mine.filter(b=>b.estado==="Activa");
+  const ini=mine.filter(b=>enR(b.fechaInicio,r)), cerr=mine.filter(b=>b.estado==="Cerrada"&&enR(b.fechaCierre,r)), canc=mine.filter(b=>b.estado==="Cancelada"&&enR(b.fechaCierre,r));
+  const ttfA=prom(cerr.map(ttf).filter(x=>x!=null)), terna=prom(ini.filter(b=>b.fechaPrimeraTerna&&b.fechaInicio).map(b=>days(b.fechaInicio,b.fechaPrimeraTerna)).filter(x=>x>=0));
+  const pres=ini.length?ini.reduce((s,b)=>s+postsOf(b.id).filter(p=>alcance(p)>=3).length,0)/ini.length:null;
+  const cap=(recruiters().find(x=>keyN(x.nombre)===keyN(n))||{}).capacidad||null;
+  return {n,mine,act,ini,cerr,canc,ttfA,terna,pres,cap,exito:(cerr.length+canc.length)?cerr.length/(cerr.length+canc.length):null,riesgo:act.filter(b=>salud(b).nivel==="crit")};
+}
+function selPer(){
+  const per=UI.recPer||"12m", ys=uniq(B().map(b=>(b.fechaInicio||"").slice(0,4))).filter(Boolean).sort().reverse().slice(0,4);
+  return `<div class="seg" role="group" aria-label="Período">${[["12m","12 meses"],...ys.map(y=>[y,y]),["todo","Todo"]].map(([v,l])=>`<button data-act="recPer" data-v="${v}" aria-pressed="${per===v}">${l}</button>`).join("")}</div>`;
+}
+const fmtD = v => v==null ? "—" : nf0.format(v)+" d";
+function vRecruiters(){
+  if(!canFin){ UI.recNom=miNombreRec(); return vRecruiter(); }
+  const r=rangoPer(UI.recPer), o=obj();
+  const rows=sortBy(recruiters().map(x=>({...statsRec(x.nombre,r),activa:x.activa})),x=>`${x.activa?0:1}${String(99-x.act.length).padStart(2,"0")}`);
+  const comPend=n=>vals(S.facturas).filter(f=>esDe(f,n)&&f.comision>0&&!f.comisionPagada);
+  let h=`<div class="head"><div><h1>Recruiters</h1><p>Carga, resultados y comisiones de cada recruiter. Tocá una para ver el detalle.</p></div>${selPer()}</div>`;
+  h+=`<div class="tablewrap solo-desk"><table><thead><tr><th>Recruiter</th><th class="r">Activas</th><th class="r">En riesgo</th><th class="r">Iniciadas</th><th class="r">Cerradas</th><th class="r">Éxito</th><th class="r">Time to fill</th><th class="r">1ª terna</th><th class="r">Comisiones pendientes</th></tr></thead><tbody>
+  ${rows.map(x=>{ const cp=comPend(x.n); return `<tr class="click" data-act="openRecruiter" data-id="${esc(x.n)}"><td><b>${esc(x.n)}</b>${x.activa?"":' <span class="tag">inactiva</span>'}</td><td class="r num">${x.act.length}${x.cap?` / ${x.cap}`:""}</td><td class="r num">${x.riesgo.length?`<span class="pill crit">${x.riesgo.length}</span>`:"0"}</td><td class="r num">${x.ini.length}</td><td class="r num">${x.cerr.length}</td><td class="r num">${pct(x.exito)}</td><td class="r num">${fmtD(x.ttfA)}</td><td class="r num">${fmtD(x.terna)}</td><td class="r num">${cp.length?`${sumMon(cp)} · ${cp.length}`:"—"}</td></tr>`; }).join("")}
+  </tbody></table></div>
+  <div class="list solo-mob">${rows.map(x=>`<div class="segcard click" data-act="openRecruiter" data-id="${esc(x.n)}"><div class="segcard-top"><b>${esc(x.n)}</b>${x.riesgo.length?`<span class="pill crit">${x.riesgo.length} en riesgo</span>`:x.activa?"":'<span class="tag">inactiva</span>'}</div>
+    <div class="segcard-nums"><span><b class="num">${x.act.length}${x.cap?"/"+x.cap:""}</b> activas</span><span><b class="num">${x.cerr.length}</b> cerradas</span><span><b class="num">${fmtD(x.ttfA)}</b> TTF</span><span><b class="num">${pct(x.exito)}</b> éxito</span></div></div>`).join("")}</div>
+  <div class="note">Período: ${r.lab}. Éxito = cerradas / (cerradas + canceladas). Time to fill objetivo: ${o.timeToFillDias} días.</div>`;
+  return h;
+}
+// Suma de comisiones por moneda: "$ 1.200.000 + US$ 300"
+function sumMon(list){ const a=list.filter(f=>f.monedaComision!=="USD").reduce((s,f)=>s+(f.comision||0),0), u=list.filter(f=>f.monedaComision==="USD").reduce((s,f)=>s+(f.comision||0),0); return [a?ars(a):"",u?usd(u):""].filter(Boolean).join(" + ")||ars(0); }
+function vRecruiter(){
+  let n=UI.recNom||miNombreRec();
+  if(!canFin) n=miNombreRec();
+  const r=rangoPer(UI.recPer), o=obj(), st=statsRec(n,r);
+  const equipo=recActivos().map(x=>statsRec(x.nombre,r)), ttfEq=prom(equipo.map(x=>x.ttfA).filter(x=>x!=null));
+  // Comisiones: socios y administradora las calculan de las facturas; una recruiter las pide al servidor (solo las suyas)
+  let com=null;
+  if(canFin) com=vals(S.facturas).filter(f=>esDe(f,n)&&f.comision>0);
+  else { const c=S.misCom; if(c&&c.recruiter===n) com=c.list; else if(!S.misComCargando){ S.misComCargando=1; api("/api/recruiter/comisiones").then(j=>{ S.misCom={recruiter:j.recruiter,list:j.comisiones}; S.misComCargando=0; schedule(); }).catch(()=>{S.misComCargando=0;}); } }
+  const comR=com?com.filter(f=>enR(f.fechaEmision,r)||(!f.comisionPagada)):[];
+  const pend=comR.filter(f=>!f.comisionPagada), pag=comR.filter(f=>f.comisionPagada);
+  const fact=canFin?vals(S.facturas).filter(f=>esDe(f,n)&&enR(f.fechaEmision,r)):[];
+  let h=`<div class="head"><div>${canFin?`<a href="#recruiters" class="muted" style="font-size:13px">← Recruiters</a>`:""}<h1>${esc(n)}</h1><p class="keep">${st.act.length} ${st.act.length===1?"búsqueda activa":"búsquedas activas"}${st.cap?` de ${st.cap} de capacidad`:""} · ${r.lab}</p></div>${selPer()}</div>`;
+  if(st.riesgo.length) h+=`<div class="panel cal crit"><b>${st.riesgo.length} ${st.riesgo.length===1?"búsqueda en riesgo":"búsquedas en riesgo"}</b><span>${st.riesgo.map(b=>`<a href="#busqueda/${encodeURIComponent(b.id)}">${esc(b.puesto)} · ${esc(b.cliente)}</a>`).join(" · ")}</span></div>`;
+  h+=`<div class="kpis">${kpi("Activas",st.act.length,st.cap?`capacidad ${st.cap}`:"",st.cap?st.act.length/st.cap:null)}${kpi("Iniciadas",st.ini.length,r.lab)}${kpi("Cerradas",st.cerr.length,`${st.canc.length} canceladas · éxito ${pct(st.exito)}`)}${kpi("Time to fill",fmtD(st.ttfA),`equipo ${fmtD(ttfEq)} · objetivo ${o.timeToFillDias} d`)}${kpi("Primera terna",fmtD(st.terna),"promedio desde el inicio")}${kpi("Presentados por búsqueda",st.pres==null?"—":nf1.format(st.pres),"candidatos que llegaron al cliente")}${canFin?kpi("Facturación generada",usd(fact.reduce((s,f)=>s+fcUSD(f),0)),`${fact.length} facturas`):""}</div>`;
+  // Tendencia mensual
+  const meses=r.lab==="Últimos 12 meses"?lastMonths(12):r.lab==="Todo el historial"?lastMonths(24):monthsOfYear(+r.s.slice(0,4));
+  const tr=meses.map(k=>({label:fm(k),a:st.mine.filter(b=>ym(b.fechaInicio)===k).length,b:st.mine.filter(b=>b.estado==="Cerrada"&&ym(b.fechaCierre)===k).length,ttf:prom(st.mine.filter(b=>b.estado==="Cerrada"&&ym(b.fechaCierre)===k).map(ttf).filter(x=>x!=null))}));
+  const conTtf=tr.filter(x=>x.ttf!=null);
+  h+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Tendencia</h2><span class="muted">por mes</span></div>${barChart(tr,{la:"Iniciadas",lb:"Cerradas",fmt:v=>nf0.format(v),h:200})}</section>
+  <section class="panel"><div class="panel-head"><h2>Time to fill por mes</h2><span class="muted">búsquedas cerradas</span></div>${conTtf.length?barras(conTtf.map(x=>[x.label,Math.round(x.ttf)]),v=>`${v} d`):'<div class="muted">Sin cierres en el período.</div>'}</section></div>`;
+  // Funnel y clientes
+  const psR=st.ini.flatMap(b=>postsOf(b.id));
+  const cli={}; st.mine.forEach(b=>{ const c=cli[b.cliente||"—"] ||= {n:b.cliente||"—",tot:0,act:0,cerr:0,ult:""}; c.tot++; if(b.estado==="Activa") c.act++; if(b.estado==="Cerrada") c.cerr++; if((b.fechaInicio||"")>c.ult) c.ult=b.fechaInicio; });
+  const cl=sortBy(vals(cli),c=>c.ult,-1);
+  h+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Funnel</h2><span class="muted">búsquedas iniciadas en el período</span></div>${psR.length?funnelHTML(psR,""):'<div class="muted">Sin candidatos cargados en el período.</div>'}</section>
+  <section class="panel"><div class="panel-head"><h2>Clientes</h2><span class="muted">${cl.length}</span></div>${cl.length?`<div class="list">${cl.slice(0,15).map(c=>`<div class="row"><div class="grow"><b>${esc(c.n)}</b><div class="muted" style="font-size:12px">última búsqueda ${fd(c.ult)}</div></div><span class="num muted" style="font-size:12.5px;text-align:right">${c.tot} búsq.${c.act?` · ${c.act} activa${c.act>1?"s":""}`:""}${c.cerr?` · ${c.cerr} cerrada${c.cerr>1?"s":""}`:""}</span></div>`).join("")}</div>`:'<div class="muted">Sin clientes.</div>'}</section></div>`;
+  // Comisiones
+  h+=`<section class="panel"><div class="panel-head"><h2>Comisiones</h2><span class="muted">pendientes y pagadas en el período</span></div>`;
+  if(!com) h+=`<div class="muted">Cargando…</div>`;
+  else{
+    h+=`<div class="kpis">${kpi("Pendientes de pago",sumMon(pend),`${pend.length} ${pend.length===1?"factura":"facturas"}`)}${kpi("Pagadas",sumMon(pag),`${pag.length} en ${r.lab.toLowerCase()}`)}</div>`;
+    const lista=sortBy([...pend,...pag],f=>`${f.comisionPagada?1:0}${f.fechaEmision||""}`);
+    h+=lista.length?`<div class="list">${lista.slice(0,40).map(f=>`<div class="row${canFin?" click":""}"${canFin?` data-act="openFactura" data-id="${f.id}"`:""}><div class="grow" style="min-width:0"><b>${esc(f.cliente||"")}</b><div class="muted" style="font-size:12px">${esc(f.concepto||"")} · emitida ${fd(f.fechaEmision)}</div></div><div style="text-align:right"><div class="num">${money(f.comision,f.monedaComision)}</div>${f.comisionPagada?`<span class="pill ok">Pagada${f.fechaPagoComision?" "+fd(f.fechaPagoComision):""}</span>`:'<span class="pill warn">Pendiente</span>'}</div></div>`).join("")}</div>`:`<div class="muted">No hay comisiones en el período.</div>`;
+  }
+  h+=`</section>`;
+  // Búsquedas
+  const fb=UI.recB||"activas", lb=sortBy(st.mine.filter(b=>fb==="todas"||(fb==="activas"?["Activa","En pausa"].includes(b.estado):fb==="cerradas"?["Cerrada","Cancelada"].includes(b.estado):true)),b=>b.fechaInicio||"",-1);
+  h+=`<section class="panel"><div class="panel-head"><h2>Búsquedas</h2><div class="seg" role="group">${[["activas","Abiertas"],["cerradas","Terminadas"],["todas","Todas"]].map(([v,l])=>`<button data-act="recB" data-v="${v}" aria-pressed="${fb===v}">${l}</button>`).join("")}</div></div>
+  ${lb.length?`<div class="list">${lb.slice(0,200).map(b=>{ const sa=salud(b); return `<div class="row click" data-act="openBusqueda" data-id="${b.id}"><div class="grow" style="min-width:0"><b>${esc(b.puesto)}</b><div class="muted" style="font-size:12px">${esc(b.cliente)} · inicio ${fd(b.fechaInicio)}${b.fechaCierre?" · cierre "+fd(b.fechaCierre):""}</div></div><div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px">${pillSalud(sa)||pillEstado(b.estado)}<span class="num muted" style="font-size:12px">${b.estado==="Activa"?`${days(b.fechaInicio)??"—"} días`:ttf(b)!=null?`TTF ${ttf(b)} d`:""}</span></div></div>`; }).join("")}</div>`:'<div class="muted">No hay búsquedas en esta vista.</div>'}</section>`;
+  return h;
 }
 
 // ================= CRM =================
@@ -732,7 +817,7 @@ async function write(path,data,mode="set"){
 }
 async function refresh(res){
   try{
-    if(res==="config"){ S.equipo=await api("/api/config/equipo"); if(canFin){ S.objetivos=await api("/api/config/objetivos"); S.digest=await api("/api/config/digest"); } }
+    if(res==="config"){ S.equipo=await api("/api/config/equipo"); if(!canFin){ try{ S.yoRec=(await api("/api/recruiter/yo")).nombre; }catch(e){} } if(canFin){ S.objetivos=await api("/api/config/objetivos"); S.digest=await api("/api/config/digest"); } }
     else if(res==="users"){ if(canFin) S.users=await api("/api/users"); names=await api("/api/users/names"); }
     else if(res==="unit"){ if(canFin) S.unit=await api("/api/unit-costs"); }
     else if(res==="conexiones"){ S.conexiones=await api("/api/unipile/cuentas"); }
@@ -1082,6 +1167,9 @@ document.addEventListener("click",async e=>{
       break; }
     case "undo": { const f=undoFn; undoFn=null; $("#toastHost").innerHTML=""; if(f) await f(); break; }
     case "gMes": UI.gMes=v; render(); break;
+    case "openRecruiter": location.hash="#recruiter/"+encodeURIComponent(id); break;
+    case "recPer": UI.recPer=v; render(); break;
+    case "recB": UI.recB=v; render(); break;
     case "newGasto": drawerGasto(null); break;
     case "openGasto": drawerGasto(id); break;
     case "omitGasto": { const g=S.gastos[id]; if(g&&await write("gastos/"+id,{omitido:!g.omitido},"update")){ toast(g.omitido?"El gasto vuelve a contar este mes":"Listo: este mes no se cuenta"); closeDrawer(); } break; }
@@ -1140,7 +1228,7 @@ document.addEventListener("change",async e=>{
 });
 document.addEventListener("input",e=>{ const el=e.target; if(el.dataset.ui && el.tagName==="INPUT"){ UI[el.dataset.ui]=el.value; clearTimeout(window.__qt); window.__qt=setTimeout(render,180); } });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("#overlay .drawer")) closeDrawer(); });
-function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); view=h==="scorecard"?"weekly":h.startsWith("busqueda/")?"ficha":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="conexiones") refresh("conexiones"); if(view==="ajustes") cargarPapelera(); if(view==="historial") S.historial=null; }
+function route(){ const h=(location.hash||"#panel").slice(1); if(h==="scorecard"){ UI.wkTab="resumen"; history.replaceState(null,"","#weekly"); } if(h.startsWith("busqueda/")) UI.fichaId=decodeURIComponent(h.slice(9)); if(h.startsWith("recruiter/")) UI.recNom=decodeURIComponent(h.slice(10)); view=h==="scorecard"?"weekly":h.startsWith("busqueda/")?"ficha":h.startsWith("recruiter/")?"recruiter":VIEWS.some(v=>v.id===h)?h:"panel"; closeDrawer(); schedule(); window.scrollTo(0,0); if(view==="conexiones") refresh("conexiones"); if(view==="ajustes") cargarPapelera(); if(view==="historial") S.historial=null; }
 window.addEventListener("hashchange",route);
 
 // ---------- login ----------
@@ -1194,7 +1282,7 @@ function drawerMyPass(){
 // ---------- pedidos de mejora ----------
 const ESTADOS_FB=["Pendiente","En curso","Hecho","Descartado"];
 const TIPOS_FB=["Mejora","Error","Idea"];
-const SECCIONES=()=>VIEWS.filter(v=>v.id&&(!v.admin||canFin)).map(v=>({v:v.id,l:v.label}));
+const SECCIONES=()=>VIEWS.filter(v=>v.id&&(!v.admin||canFin)).map(v=>({v:v.id,l:labOf(v)}));
 UI.fbEstado="Abiertos";
 function vMejoras(){
   let list=vals(S.feedback);
@@ -1202,7 +1290,7 @@ function vMejoras(){
   else if(UI.fbEstado!=="Todos") list=list.filter(f=>f.estado===UI.fbEstado);
   const pr={Alta:0,Media:1,Baja:2};
   list=sortBy(list,f=>`${pr[f.prioridad]??1}-${9999-(+String(f.fecha||"0").replace(/-/g,"").slice(0,8)||0)}`);
-  const lab=Object.fromEntries(VIEWS.filter(v=>v.id).map(v=>[v.id,v.label]));
+  const lab=Object.fromEntries(VIEWS.filter(v=>v.id).map(v=>[v.id,labOf(v)]));
   let h=`<div class="head"><div><h1>Pedidos de mejora</h1><p>Lo que el equipo pide cambiar del sistema. Cada pedido tiene estado y respuesta, así se ve qué se hizo.</p></div><button class="btn lemon" data-act="newFeedback">Sugerir mejora</button></div>
   <div class="toolbar"><div class="seg" role="group">${["Abiertos","Hecho","Descartado","Todos"].map(e=>`<button data-act="fbEstado" data-v="${e}" aria-pressed="${UI.fbEstado===e}">${e}</button>`).join("")}</div></div>`;
   if(!list.length) return h+`<div class="empty">No hay pedidos en esta vista. Usá “Sugerir mejora” desde cualquier pantalla.</div>`;
@@ -1656,7 +1744,8 @@ document.addEventListener("change",async e=>{ const el=e.target; if(!el.dataset|
 function buscarGlobal(q){
   const k=keyN(q); if(k.length<2) return [];
   const out=[]; const add=(t,sub,act,id,tipo)=>out.push({t,sub,act,id,tipo});
-  B().forEach(b=>{ if(keyN(b.puesto+" "+b.cliente+" "+(b.candidatoFinal||"")).includes(k)) add(b.puesto,`${b.cliente} · ${b.estado}`,"openBusqueda",b.id,"Búsqueda"); });
+  (canFin?recruiters().map(r=>r.nombre):[miNombreRec()]).forEach(n=>{ if(n&&keyN(n).includes(k)) { const na=B().filter(b=>keyN(b.recruiter)===keyN(n)&&b.estado==="Activa").length; add(n,`${na} ${na===1?"búsqueda activa":"búsquedas activas"}`,"openRecruiter",n,"Recruiter"); } });
+  B().forEach(b=>{ if(keyN(b.puesto+" "+b.cliente+" "+(b.candidatoFinal||"")+" "+(b.recruiter||"")).includes(k)) add(b.puesto,`${b.cliente} · ${b.estado}${b.recruiter?" · "+b.recruiter:""}`,"openBusqueda",b.id,"Búsqueda"); });
   vals(S.candidatos).forEach(c=>{ if(keyN(c.nombre+" "+(c.email||"")+" "+(c.empresaActual||"")).includes(k)) add(c.nombre,[c.rolActual,c.empresaActual].filter(Boolean).join(" · "),"openCandidato",c.id,"Candidato"); });
   if(canFin){ clienteStats().forEach(c=>{ if(keyN(c.nombre).includes(k)) add(c.nombre,`${c.total} búsquedas · ${c.estado}`,"openCliente",c.k,"Cliente"); });
     vals(S.leads).forEach(l=>{ if(keyN(l.empresa+" "+(l.contacto||"")).includes(k)) add(l.empresa,`${l.contacto||""} · ${l.etapa}`,"openLead",l.id,"Lead"); }); }

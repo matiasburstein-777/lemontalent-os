@@ -58,6 +58,12 @@ Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` e
 - **Link para el cliente**: `GET/POST/DELETE /api/links/:busquedaId` (cualquier usuario logueado) y la página pública `/c/:token`, sin login. Muestra estado, funnel, candidatos presentados (nombre, rol y empresa) y los textos del link. Nunca montos, notas internas, contactos ni semáforo.
 - Las columnas y tablas nuevas se crean solas al arrancar (`migrarSeguimiento`), sin `db:push`.
 
+## Vista de recruiter (`#recruiters`, `#recruiter/<nombre>`)
+
+- Socios y Administradora ven el resumen del equipo y el detalle de cualquier recruiter; una recruiter ve solo su panel ("Mi panel").
+- Indicadores por período (12 meses, año o todo): activas vs. capacidad, iniciadas, cerradas, éxito (cerradas / cerradas + canceladas), time to fill vs. equipo, días a la primera terna, presentados por búsqueda, tendencia mensual, funnel, clientes y comisiones.
+- Comisiones de una recruiter: `GET /api/recruiter/comisiones` (`server/recruiters.js`) devuelve solo las suyas, sin montos de facturas. El nombre se resuelve contra Equipo (igual o mismo primer nombre).
+
 ## Convenciones de negocio
 
 - Los montos se guardan en su moneda original. Para comparar, se convierte a dólares con el TC del mes de emisión (`tcFor`).

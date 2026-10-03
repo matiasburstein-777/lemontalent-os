@@ -16,6 +16,7 @@ import { registerConsistencia } from "./consistencia.js";
 import { registerContratos } from "./contratos.js";
 import { registerSeguimiento, migrarSeguimiento, conEtapas } from "./seguimiento.js";
 import { registerGastos, migrarGastos } from "./gastos.js";
+import { registerRecruiters } from "./recruiters.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -154,6 +155,7 @@ registerConsistencia(app, { pool, auth, HX });
 registerContratos(app, { pool, auth });
 registerSeguimiento(app, { pool, auth });
 registerGastos(app, { pool, auth });
+registerRecruiters(app, { pool, auth, rank, RANK });
 
 // Costos unitarios por año, solo ratios (nunca totales): para socios y administradoras.
 app.get("/api/unit-costs", auth("admin"), async (req, res, next) => {
