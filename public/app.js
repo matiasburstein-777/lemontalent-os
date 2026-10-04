@@ -1859,6 +1859,10 @@ function pintarBuscador(){ const inp=$("#gq"), box=$("#gres"); if(!inp||!box) re
   if(!inp.value.trim()){ box.hidden=true; return; } box.hidden=false;
   box.innerHTML=res.length?res.map((r,i)=>`<button class="gitem${i===0?" on":""}" data-act="${r.act}" data-id="${esc(r.id)}"><span class="tag">${r.tipo}</span><b>${esc(r.t)}</b><span class="muted">${esc(r.sub||"")}</span></button>`).join(""):`<div class="muted" style="padding:8px 10px;font-size:13px">Sin resultados</div>`; }
 document.addEventListener("input",e=>{ if(e.target.id==="gq") pintarBuscador(); });
+// Mobile: el buscador es solo una lupa; al tocarla ocupa la barra y se cierra al salir si quedó vacío
+document.addEventListener("click",e=>{ if(e.target.closest?.(".gs-btn")){ $(".rail")?.classList.add("buscando"); $("#gq")?.focus(); } });
+document.addEventListener("focusin",e=>{ if(e.target.id==="gq") $(".rail")?.classList.add("buscando"); });
+document.addEventListener("focusout",e=>{ if(e.target.id==="gq") setTimeout(()=>{ const i=$("#gq"); if(i && document.activeElement!==i && !i.value) $(".rail")?.classList.remove("buscando"); },200); });
 document.addEventListener("keydown",e=>{
   if(e.key==="/"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||"")){ e.preventDefault(); $("#gq")?.focus(); }
   if(e.target.id==="gq"){ if(e.key==="Escape"){ e.target.value=""; pintarBuscador(); e.target.blur(); } if(e.key==="Enter"){ $("#gres .gitem")?.click(); } }
