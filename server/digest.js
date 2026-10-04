@@ -198,7 +198,7 @@ export function registerDigest(app, { db, pool, S, auth, rank, RANK, R, clean, n
 
 // ---------- Google (cuenta de servicio con delegación de dominio) ----------
 const tokens = new Map();
-async function googleToken(sa, sub, scope) {
+export async function googleToken(sa, sub, scope) {
   const k = sub + "|" + scope, hit = tokens.get(k);
   if (hit && hit.exp > Date.now() + 60e3) return hit.token;
   const now = Math.floor(Date.now() / 1000);

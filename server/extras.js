@@ -1,6 +1,7 @@
 // Historial de cambios, papelera (30 días), archivos adjuntos (CV) y backup.
 import crypto from "node:crypto";
 import { eq, getTableColumns } from "drizzle-orm";
+import { armarBackup, backupDiario } from "./backup.js";
 
 export const EXTRAS_SQL = `
 CREATE TABLE IF NOT EXISTS historial (
@@ -183,25 +184,25 @@ export function registerExtras(app, { db, pool, S, auth, rank, RANK, R, newId })
   });
 
   // ---------- backup ----------
-  async function backup() {
-    const out = { generado: new Date().toISOString(), version: 1, tablas: {} };
-    const tablas = ["busquedas", "busquedas_fin", "candidatos", "postulaciones", "facturas", "clientes", "leads", "meses", "config", "feedback", "propuestas", "historial"];
-    for (const t of tablas) {
-      try { out.tablas[t] = (await pool.query(`SELECT * FROM ${t}`)).rows; } catch { out.tablas[t] = null; }
-    }
-    out.tablas.users = (await pool.query("SELECT id, email, nombre, rol, activo, creado FROM users")).rows;
-    out.tablas.archivos = (await pool.query("SELECT id, fecha, coleccion, registro_id, nombre, tipo, tamano FROM archivos")).rows;
-    return out;
-  }
   const enviarBackup = async (req, res, next) => {
     try {
-      const b = await backup();
+      const b = await armarBackup(pool);
       res.setHeader("Content-Disposition", `attachment; filename="lemon-talent-backup-${b.generado.slice(0, 10)}.json"`);
       res.json(b);
     } catch (e) { next(e); }
   };
   app.get("/api/backup", auth("admin"), enviarBackup);
   app.get("/api/ingest/backup", ingest, enviarBackup);
+  // Copia en Google Drive: estado de la última y subida manual (la diaria la corre scripts/backup-drive.js).
+  app.get("/api/backup/drive", auth("socio"), async (req, res, next) => {
+    try { res.json((await pool.query("SELECT value FROM config WHERE key = 'backupDrive'")).rows[0]?.value || null); } catch (e) { next(e); }
+  });
+  app.post("/api/backup/drive", auth("socio"), async (req, res, next) => {
+    try { res.json(await backupDiario(pool)); } catch (e) { next(e); }
+  });
+  app.post("/api/ingest/backup-drive", ingest, async (req, res, next) => {
+    try { const r = await backupDiario(pool); res.status(r.ok ? 200 : 500).json(r); } catch (e) { next(e); }
+  });
 
   return H;
 }

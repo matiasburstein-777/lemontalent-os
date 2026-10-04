@@ -808,7 +808,7 @@ const CONFIG_VIEWS=["config"];
 function tabsConfig(){
   return [canFin&&["usuarios","Usuarios y accesos"],canFin&&["objetivos","Objetivos"],["conexiones","Conexiones"],["historial","Historial de cambios"],canFin&&["calidad",`Calidad de datos <span class="muted num">${calidadDatos().length}</span>`],isAdmin&&["papelera","Papelera y respaldo"],["mejoras",`Pedidos de mejora <span class="muted num">${vals(S.feedback).filter(f=>f.estado==="Pendiente"||f.estado==="En curso").length}</span>`]].filter(Boolean);
 }
-function abrirTabConfig(){ const t=UI.cfgTab; if(t==="conexiones") refresh("conexiones"); if(t==="papelera") cargarPapelera(); if(t==="historial") S.historial=null; }
+function abrirTabConfig(){ const t=UI.cfgTab; if(t==="conexiones") refresh("conexiones"); if(t==="papelera"){ cargarPapelera(); if(isAdmin) cargarBackupDrive(); } if(t==="historial") S.historial=null; }
 function vConfig(){
   const tabs=tabsConfig(); if(!tabs.some(([v])=>v===UI.cfgTab)) UI.cfgTab=tabs[0][0];
   const t=UI.cfgTab;
@@ -1291,6 +1291,7 @@ document.addEventListener("click",async e=>{
     case "repCliente": drawerRepCliente(id); break;
     case "repMensual": drawerRepMensual(); break;
     case "wkPDF": weeklyPDF(); break;
+    case "backupDrive": try{ toast("Subiendo backup a Drive…"); const r=await api("/api/backup/drive",{method:"POST"}); S.backupDrive=r; schedule(); r.ok?toast("Backup subido a Drive"):toast("No se pudo subir: "+r.error,true); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo subir.",true); } break;
     case "restaurar": try{ const r=await api("/api/papelera/"+encodeURIComponent(id)+"/restaurar",{method:"POST"}); toast("Restaurado"); cargarPapelera(); refresh(r.coleccion); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo restaurar.",true); } break;
     case "cliDocDel": if(!t.dataset.armed){ t.dataset.armed="1"; t.textContent="Confirmar"; break; } try{ await api("/api/archivos/"+encodeURIComponent(id),{method:"DELETE"}); toast("Documento quitado"); await cargarCliDocs(); refrescarDocs(); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo quitar.",true); } break;
     case "archDel": if(!t.dataset.armed){ t.dataset.armed="1"; t.textContent="Confirmar"; break; } try{ await api("/api/archivos/"+encodeURIComponent(id),{method:"DELETE"}); toast("Archivo quitado"); cargarArchivos(t.dataset.col,t.dataset.reg); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo quitar.",true); } break;
@@ -1827,11 +1828,19 @@ async function cargarHistSection(col,id){ const el=document.getElementById("hist
 function papeleraBox(){
   if(!isAdmin) return "";
   const P=S.papelera;
-  return `<section class="panel"><div class="panel-head"><h2>Papelera y respaldo</h2><span style="display:flex;gap:6px"><a class="btn sm" href="/api/backup" download>Descargar backup completo</a></span></div>
-  <div class="note">Lo que se elimina queda 30 días en la papelera y se puede restaurar. El backup descarga toda la base en un archivo; además se guarda una copia automática en Google Drive.</div>
+  return `<section class="panel"><div class="panel-head"><h2>Papelera y respaldo</h2><span style="display:flex;gap:6px"><button class="btn sm ghost" data-act="backupDrive">Subir a Drive ahora</button><a class="btn sm" href="/api/backup" download>Descargar backup completo</a></span></div>
+  <div class="note">Lo que se elimina queda 30 días en la papelera y se puede restaurar. El backup descarga toda la base en un archivo (sin el contenido de los CV); además se sube una copia diaria a Google Drive y se guardan los últimos 30 días.</div>
+  ${backupDriveLinea()}
   ${!P?`<div class="muted">Cargando papelera…</div>`:!P.length?`<div class="muted" style="font-size:13px">La papelera está vacía.</div>`:`<div class="list">${P.map(x=>`<div class="row"><div class="grow"><div><b>${esc(x.datos?.puesto||x.datos?.nombre||x.datos?.empresa||x.datos?.concepto||x.datos?.texto?.slice(0,60)||x.registroId)}</b> <span class="muted">· ${esc(HIST_LAB[x.coleccion]||x.coleccion)}</span></div><div class="muted" style="font-size:12px">Eliminado por ${esc(authorName(x.usuarioId))} el ${new Date(x.fecha).toLocaleDateString("es-AR")}</div></div><button class="btn sm" data-act="restaurar" data-id="${esc(x.id)}">Restaurar</button></div>`).join("")}</div>`}</section>`;
 }
 async function cargarPapelera(){ if(!isAdmin) return; try{ S.papelera=await api("/api/papelera"); schedule(); }catch(e){} }
+function backupDriveLinea(){ const b=S.backupDrive; if(b===undefined) return "";
+  if(!b) return `<div class="muted" style="font-size:13px;margin-bottom:8px">Copia en Drive: todavía no se subió ninguna.</div>`;
+  const f=new Date(b.fecha).toLocaleString("es-AR",{timeZone:"America/Argentina/Buenos_Aires",dateStyle:"short",timeStyle:"short"});
+  const viejo=Date.now()-new Date(b.fecha)>36*3600e3;
+  return b.ok?`<div class="muted" style="font-size:13px;margin-bottom:8px;${viejo?"color:var(--danger,#c0392b)":""}">Última copia en Drive: ${esc(f)} · ${esc(b.archivo)} (${Math.max(1,Math.round(b.tamano/1024))} KB)${viejo?" · hace más de un día, revisar":""}</div>`
+    :`<div style="font-size:13px;margin-bottom:8px;color:var(--danger,#c0392b)">La última copia en Drive falló (${esc(f)}): ${esc(b.error)}</div>`; }
+async function cargarBackupDrive(){ try{ S.backupDrive=await api("/api/backup/drive"); schedule(); }catch(e){} }
 
 // ---- Archivos adjuntos (CV) ----
 function archivosSection(col,id){ setTimeout(()=>cargarArchivos(col,id),0); return `<div class="section"><div class="panel-head"><span class="label">Archivos (CV y otros)</span><label class="btn sm" style="cursor:pointer">Adjuntar<input type="file" data-upload="${col}" data-id="${esc(id)}" hidden accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"></label></div><div id="arch-${esc(id)}" class="list"><div class="muted" style="font-size:13px">Cargando…</div></div></div>`; }

@@ -97,6 +97,12 @@ Los pedidos están en la pantalla "Pedidos de mejora" (tabla `feedback`). Al ter
 - `GET /api/ingest/mensajes?desde=ISO` (con `INGEST_TOKEN`): mensajes nuevos agrupados por chat. Nunca devuelve grupos. Con filtro "base", solo devuelve chats con teléfonos o nombres de candidatos y clientes del sistema.
 - Es solo lectura: no se envían mensajes.
 
+## Backup diario en Google Drive
+
+- `server/backup.js` arma el backup (todas las tablas, sin `session`, sin hash de contraseñas ni contenido de los CV), lo sube comprimido (`lemon-talent-backup-AAAA-MM-DD.json.gz`) y borra los de más de 30 días. El resultado queda en config `backupDrive` y se ve en Ajustes → Papelera y respaldo.
+- Lo corre un **Scheduled Deployment** de Replit: `node scripts/backup-drive.js`, todos los días a las 3:00 (Buenos Aires). También: botón "Subir a Drive ahora" (socios) y `POST /api/ingest/backup-drive` (con `INGEST_TOKEN`).
+- Secretos: `GOOGLE_SA_JSON`, `BACKUP_DRIVE_FOLDER_ID` (ID de la carpeta) y `BACKUP_DRIVE_USER` (usuario @lemontalent.com dueño de la carpeta; la cuenta de servicio lo impersona con el scope `https://www.googleapis.com/auth/drive`). Si la carpeta está en una unidad compartida donde la cuenta de servicio es miembro, `BACKUP_DRIVE_USER` no hace falta.
+
 ## Próximos pasos previstos
 
 1. Digest diario de mails (Gmail API) que proponga actualizaciones de búsquedas, candidatos y facturas, para que un socio las apruebe.
