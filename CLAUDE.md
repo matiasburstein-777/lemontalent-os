@@ -19,6 +19,6 @@ Contexto funcional y reglas de permisos de la app: `replit.md`.
 
 - **Nunca** subir datos reales: `data/`, `zipFile.zip`, backups ni exports. Están en `.gitignore`.
 - Secretos solo en Replit Secrets (`DATABASE_URL`, `SESSION_SECRET`, `INGEST_TOKEN`, Unipile, Google). Nunca en el código.
-- Permisos por rol (Socio / Administradora / Recruiter) se validan en el servidor, no solo en la UI.
+- Permisos por rol (Admin / Recruiter; Socio y Administradora se unificaron en Admin en oct-2026) se validan en el servidor, no solo en la UI.
 - Cambios que afecten la migración desde planillas: anotarlos en `registro-migracion.md` del matias-brain.
 - Fechas en hora local de Buenos Aires.
