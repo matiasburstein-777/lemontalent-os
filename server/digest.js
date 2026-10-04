@@ -1,6 +1,7 @@
 // Digest automático: lectura de fuentes (Gmail y Calendar vía Google Workspace) y Bandeja de propuestas.
 // Flujo: un proceso externo (tarea programada de Claude) llama a /api/ingest/* con INGEST_TOKEN,
 // lee novedades, y carga PROPUESTAS. Nada se escribe en las tablas hasta que un socio o la administradora aprueba.
+import { conEtapas } from "./seguimiento.js";
 import crypto from "node:crypto";
 import { eq, desc } from "drizzle-orm";
 
@@ -170,6 +171,7 @@ export function registerDigest(app, { db, pool, S, auth, rank, RANK, R, clean, n
         if (!row) return res.status(404).json({ error: "El registro de esta propuesta ya no existe." });
         if (p.op === "actualizar") {
           const vals = clean(r.t, datos); delete vals.id;
+          if (p.coleccion === "postulaciones") conEtapas(vals, row, req.user); // historial de etapas (p. ej. opinión del cliente)
           if (p.coleccion === "busquedas") vals.actualizado = today();
           if (Object.keys(vals).length) await db.update(r.t).set(vals).where(eq(cols.id, regId));
         } else if (p.op === "bitacora") {

@@ -153,7 +153,7 @@ const HX = registerExtras(app, { db, pool, S, auth, rank, RANK, R, newId });
 registerComercial(app, { pool, auth, HX });
 registerConsistencia(app, { pool, auth, HX });
 registerContratos(app, { pool, auth });
-registerSeguimiento(app, { pool, auth });
+registerSeguimiento(app, { pool, auth, newId });
 registerGastos(app, { pool, auth });
 registerRecruiters(app, { pool, auth, rank, RANK });
 

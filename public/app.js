@@ -444,21 +444,29 @@ function drawerDescarte(pid){
     if(await write("postulaciones/"+pid,{etapa:"Descartado",motivo:m,motivoDetalle:gv("ds-n"),fecha:today()},"update")){ toast("Candidato descartado"); closeDrawer(); } };
 }
 
-// Link privado de solo lectura para el cliente
-async function drawerLink(bid){
+// Link privado de solo lectura para el cliente: de esta búsqueda o del cliente con todas sus búsquedas abiertas
+async function drawerLink(bid,alc){
   const b=S.busquedas[bid]; if(!b) return;
-  let l=null; try{ l=await api("/api/links/"+encodeURIComponent(bid)); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo cargar el link.",true); return; }
-  const url=l?`${location.origin}/c/${l.token}`:"";
-  const body=`<div class="note">El cliente ve, sin iniciar sesión: estado, días en curso, el funnel (cantidades por etapa), los candidatos presentados (nombre, rol y empresa) y los textos de abajo. No ve montos, notas internas, contactos de candidatos ni el semáforo.</div>
+  let L=null; try{ L=await api("/api/links/"+encodeURIComponent(bid)); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo cargar el link.",true); return; }
+  alc=alc||UI.lkAlc||"busqueda"; UI.lkAlc=alc;
+  const l=L[alc], url=l?`${location.origin}/c/${l.token}`:"";
+  const pres=sortBy(postsOf(bid).filter(p=>alcance(p)>=3),p=>-alcance(p));
+  const body=`<div class="seg" role="group" aria-label="Alcance" style="margin-bottom:10px"><button data-act="lkAlc" data-id="${bid}" data-v="busqueda" aria-pressed="${alc==="busqueda"}">Esta búsqueda${L.busqueda?" ●":""}</button><button data-act="lkAlc" data-id="${bid}" data-v="cliente" aria-pressed="${alc==="cliente"}">Todas las de ${esc(b.cliente)}${L.cliente?" ●":""}</button></div>
+  <div class="note">${alc==="cliente"?`Un solo link para ${esc(b.cliente)} con todas sus búsquedas abiertas: avance, candidatos presentados y lo que escribas abajo.`:"El cliente ve el estado, el avance y los candidatos presentados de esta búsqueda."} Puede marcar cada candidato como <b>Me interesa</b> o <b>No avanzar</b>: llega a la Bandeja de propuestas para que lo apruebes. Nunca ve montos, notas internas, contactos ni el semáforo.</div>
   ${l?`<div class="section"><span class="label">Link activo</span><div class="row"><input id="lk-url" type="text" readonly value="${esc(url)}" style="flex:1"><button class="btn sm" data-act="copyLink">Copiar</button></div>
     <div class="muted" style="font-size:12px">${l.vistas?`Abierto ${l.vistas} ${l.vistas===1?"vez":"veces"} · última ${new Date(l.ultimaVista).toLocaleString("es-AR")}`:"Todavía no lo abrieron."}</div>
-    <div><button class="btn sm danger" data-act="unlinkCliente" data-id="${bid}">Desactivar link</button></div></div>`:""}
-  <div class="form">${farea("Estado de la búsqueda (lo lee el cliente)","lk-res",l?l.resumen:(b.detalle||""))}${farea("Próximos pasos","lk-pp",l?l.proximos:(b.proximoPaso||""))}
-  <label class="check full"><input id="lk-cand" type="checkbox"${!l||l.mostrarCandidatos?" checked":""}> Mostrar candidatos presentados</label></div>`;
+    <div><button class="btn sm danger" data-act="unlinkCliente" data-id="${bid}" data-v="${alc}">Desactivar link</button></div></div>`:""}
+  <div class="form">${farea("Estado (lo lee el cliente)","lk-res",l?l.resumen:(alc==="busqueda"?b.detalle||"":""))}${farea("Próximos pasos","lk-pp",l?l.proximos:(alc==="busqueda"?b.proximoPaso||"":""))}
+  <label class="check full"><input id="lk-cand" type="checkbox"${!l||l.mostrarCandidatos?" checked":""}> Mostrar candidatos presentados</label>
+  <label class="check full"><input id="lk-desc" type="checkbox"${!l||l.ocultarDescartados?" checked":""}> Ocultar a los que ya no continúan</label></div>
+  ${pres.length?`<div class="section"><span class="label">Comentario para el cliente sobre cada candidato (${esc(b.puesto)})</span>${pres.map(p=>{const c=S.candidatos[p.candidatoId]||{}; return `<div class="f full"><label for="lk-c-${p.id}">${esc(c.nombre||"Candidato")} · ${esc(p.etapa)}</label><textarea id="lk-c-${p.id}" placeholder="Ej.: fuerte en negociación, disponible en 30 días">${esc(p.comentarioCliente||"")}</textarea></div>`;}).join("")}</div>`:""}`;
   openDrawer("Link para el cliente",`${esc(b.puesto)} · ${esc(b.cliente)}`,body,{save:{label:l?"Guardar cambios":"Crear link"}});
   drawerSave.save.fn=async()=>{
-    try{ await api("/api/links/"+encodeURIComponent(bid),{method:"POST",body:JSON.stringify({resumen:gv("lk-res"),proximos:gv("lk-pp"),mostrarCandidatos:gv("lk-cand")})}); toast(l?"Link actualizado":"Link creado"); drawerLink(bid); }
-    catch(e){ if(e.code!==401) toast(e.message||"No se pudo guardar.",true); }
+    try{
+      for(const p of pres){ const v=gv("lk-c-"+p.id); if((v||"")!==(p.comentarioCliente||"")) await write("postulaciones/"+p.id,{comentarioCliente:v},"update"); }
+      await api("/api/links/"+encodeURIComponent(bid),{method:"POST",body:JSON.stringify({alcance:alc,resumen:gv("lk-res"),proximos:gv("lk-pp"),mostrarCandidatos:gv("lk-cand"),ocultarDescartados:gv("lk-desc")})});
+      toast(l?"Link actualizado":"Link creado"); drawerLink(bid,alc);
+    }catch(e){ if(e.code!==401) toast(e.message||"No se pudo guardar.",true); }
   };
 }
 
@@ -1206,7 +1214,8 @@ document.addEventListener("click",async e=>{
     case "editBusqueda": drawerBusqueda(id); if(id) cargarHistSection("busquedas",id); break;
     case "linkCliente": drawerLink(id); break;
     case "copyLink": { const i=$("#lk-url"); if(i){ try{ await navigator.clipboard.writeText(i.value); toast("Link copiado"); }catch(err){ i.select(); toast("Seleccionado: copialo con Ctrl+C",true); } } break; }
-    case "unlinkCliente": if(!confirm("¿Desactivar el link? El cliente ya no va a poder abrirlo.")) break; try{ await api("/api/links/"+encodeURIComponent(id),{method:"DELETE"}); toast("Link desactivado"); drawerLink(id); }catch(err){ if(err.code!==401) toast(err.message||"No se pudo desactivar.",true); } break;
+    case "lkAlc": drawerLink(id,v); break;
+    case "unlinkCliente": if(!confirm("¿Desactivar el link? El cliente ya no va a poder abrirlo.")) break; try{ await api("/api/links/"+encodeURIComponent(id)+"?alcance="+(v||"busqueda"),{method:"DELETE"}); toast("Link desactivado"); drawerLink(id,v); }catch(err){ if(err.code!==401) toast(err.message||"No se pudo desactivar.",true); } break;
     case "pipeFicha": UI.cBusq=id; descargarExcel(datosExport("pipeline"),EXPORT_NOMBRE.pipeline||"pipeline"); break;
     case "weeklyUpdate": drawerWeekly(id); break;
     case "newCandidato": drawerCandidato(null); break;
@@ -1405,7 +1414,7 @@ function drawerFeedback(id){
 // ================= BANDEJA DE PROPUESTAS (digest automático) =================
 const COL_LAB = {busquedas:"Búsqueda",candidatos:"Candidato",postulaciones:"Postulación",clientes:"Cliente",leads:"Lead",facturas:"Factura",busquedasFin:"Datos económicos"};
 const OP_LAB = {crear:"Crear",actualizar:"Actualizar",bitacora:"Sumar a la bitácora",minuta:"Vincular minuta"};
-const FUENTE_PILL = {Mail:"info",Calendario:"lemon",Granola:"ok",WhatsApp:"ok",LinkedIn:"info"};
+const FUENTE_PILL = {Cliente:"lemon",Mail:"info",Calendario:"lemon",Granola:"ok",WhatsApp:"ok",LinkedIn:"info"};
 const humanKey = k => { const L={fechaUltimoContacto:"Último contacto",fechaPrimerContacto:"Primer contacto",motivoPerdida:"Motivo de pérdida",feeMultiplo:"Fee (× sueldo)",feeEstimadoARS:"Fee estimado ARS",sueldoUSD:"Sueldo USD",sueldoBrutoARS:"Sueldo bruto ARS",proximoPaso:"Próximo paso",proximoSeguimiento:"Próximo seguimiento",fechaCierre:"Fecha de cierre",fechaInicio:"Fecha de inicio",fechaIngreso:"Fecha de ingreso",candidatoFinal:"Candidato final",fechaPagoComision:"Fecha de pago de comisión",comisionPagada:"Comisión pagada",fechaCobro:"Fecha de cobro",fechaEmision:"Fecha de emisión",busquedaId:"Búsqueda",monedaComision:"Moneda de comisión",fechaPrimeraTerna:"Primera terna",inicioAvance:"Inicio y avance"}; if(L[k]) return L[k]; return String(k).replace(/^_/,"").replace(/([a-z])([A-Z])/g,"$1 $2").split(" ").map((w,i)=>/^[A-Z]{2,}$/.test(w)?w:(i?w.toLowerCase():w.charAt(0).toUpperCase()+w.slice(1).toLowerCase())).join(" "); };
 function propTarget(p){
   const id=p.registroId; if(!id) return p.op==="crear" ? "Nuevo registro" : "—";

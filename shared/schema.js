@@ -80,6 +80,7 @@ export const postulaciones = pgTable("postulaciones", {
   motivoDetalle: text("motivo_detalle"),
   fecha: d("fecha"),
   notas: text("notas"),
+  comentarioCliente: text("comentario_cliente"), // comentario del candidato que ve el cliente en su link
   etapas: jsonb("etapas").default([]), // [{etapa, fecha, autor, motivo}] lo arma el servidor en cada cambio de etapa
 });
 
@@ -113,11 +114,13 @@ export const gastosRecurrentes = pgTable("gastos_recurrentes", {
 // Link privado de solo lectura para que el cliente vea el avance de su búsqueda (server/seguimiento.js)
 export const linksCliente = pgTable("links_cliente", {
   token: text("token").primaryKey(),
-  busquedaId: text("busqueda_id").notNull(),
+  busquedaId: text("busqueda_id"), // vacío = link de un cliente con todas sus búsquedas abiertas
+  cliente: text("cliente"),
   activo: boolean("activo").default(true),
   resumen: text("resumen"),
   proximos: text("proximos"),
   mostrarCandidatos: boolean("mostrar_candidatos").default(true),
+  ocultarDescartados: boolean("ocultar_descartados").default(true),
   usuarioId: text("usuario_id"),
   creado: timestamp("creado").defaultNow(),
   vistas: integer("vistas").default(0),
