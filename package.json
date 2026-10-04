@@ -8,6 +8,7 @@
     "dev": "node --watch server/index.js",
     "db:push": "drizzle-kit push --force",
     "db:seed": "node scripts/seed.js",
+    "backup:drive": "node scripts/backup-drive.js",
     "setup": "npm run db:push && npm run db:seed"
   },
   "dependencies": {
