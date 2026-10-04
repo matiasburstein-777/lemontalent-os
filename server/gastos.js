@@ -1,5 +1,5 @@
 // Gastos del negocio: puntuales y recurrentes (se cargan solos cada mes con su monto, ajustable por mes).
-// Socios y Administradora cargan y marcan pagos; los totales, el resultado y el margen solo los ve un socio (en el frontend).
+// Los admins cargan, marcan pagos y ven totales, resultado y margen.
 // Solo se cargan gastos desde el primer mes que no viene de la planilla Economics (meses.historico).
 import { hoyBA } from "./seguimiento.js";
 

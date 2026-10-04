@@ -9,7 +9,7 @@ Sistema interno de Lemon Talent, consultora de recruiting en Argentina. Reemplaz
 - Workflow: `Start application`, comando `npm run start`, puerto `5000`.
 - PostgreSQL usa `DATABASE_URL`, administrada por Replit. Las tablas se preparan con `npm run db:push`.
 - Para esta puesta en marcha no ejecutar `npm run setup` ni `npm run db:seed`: los datos importados no se cargan.
-- El usuario cargará `ADMIN_PASSWORD` por su cuenta. Con `ADMIN_EMAIL`, `ADMIN_NOMBRE` y `ADMIN_PASSWORD` en Secrets, reiniciar el workflow para crear el primer socio si no hay usuarios.
+- El usuario cargará `ADMIN_PASSWORD` por su cuenta. Con `ADMIN_EMAIL`, `ADMIN_NOMBRE` y `ADMIN_PASSWORD` en Secrets, reiniciar el workflow para crear el primer admin si no hay usuarios.
 - No se modificó código de la aplicación para esta puesta en marcha.
 
 ## Arquitectura
@@ -25,21 +25,20 @@ Sistema interno de Lemon Talent, consultora de recruiting en Argentina. Reemplaz
 
 ## Roles y permisos (no romper)
 
-Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` en `server/index.js`).
+Dos roles (constante `RANK` en `server/index.js`): `recruiter` < `admin`. En oct-2026 se unificaron Socio y Administradora en `admin` con acceso total (Pau, Matías y Maga); al arrancar, el servidor pasa cualquier usuario `socio` a `admin`.
 
-- `socio`: ve y edita todo.
-- `admin` (Administradora): todo lo de recruiter más `facturas`, `busquedasFin`, `clientes`, `leads`, `config` (equipo y objetivos) y alta/edición de usuarios **recruiter**. En `meses` el servidor le quita el campo `gastos` y no puede escribir. Ve costos unitarios solo vía `GET /api/unit-costs` (ratios por año, nunca totales). **Carga gastos** (`gastos`, `gastosRecurrentes`) y marca pagos, pero el frontend no le muestra totales, resultado ni margen (decisión de los socios, oct-2026).
+- `admin`: ve y edita todo (finanzas, gastos, resultados, usuarios y roles, papelera y respaldo, borrar registros).
 - `recruiter`: ve y edita `busquedas`, `candidatos`, `postulaciones` y `feedback`. **No puede leer** `facturas`, `busquedasFin`, `clientes`, `leads`, `meses` ni `config/objetivos`.
-- Los permisos se aplican **en el servidor** (objeto `R` en `server/index.js`: `min` = rol mínimo para leer/escribir, `write` = rol mínimo para escribir si es más alto). Ocultar algo en el frontend no alcanza. Toda colección nueva con plata o datos comerciales lleva `min: "admin"`, y si incluye costos o resultado, `min: "socio"`.
-- En el frontend: `isAdmin` = socio, `canFin` = socio o administradora.
-- Borrar búsquedas, candidatos y pedidos de mejora es solo para socios.
+- Los permisos se aplican **en el servidor** (objeto `R` en `server/index.js`: `min` = rol mínimo para leer/escribir, `write` = rol mínimo para escribir si es más alto). Ocultar algo en el frontend no alcanza. Toda colección nueva con plata o datos comerciales lleva `min: "admin"`.
+- En el frontend: `isAdmin` = `canFin` = admin (`isAdm` quedó siempre en false).
+- Borrar búsquedas, candidatos y pedidos de mejora es solo para admins.
 
 ## Modelo de datos
 
 | Tabla | Para qué sirve |
 |---|---|
 | `busquedas` | Cada proceso: puesto, cliente, recruiter, estado (Activa / En pausa / Cerrada / Cancelada), fechas, candidato final, garantía, `bitacora` (actualizaciones semanales) y `minutas` (links de Granola). |
-| `busquedas_fin` | Sueldo, fee y comisión de cada búsqueda. Solo socios. |
+| `busquedas_fin` | Sueldo, fee y comisión de cada búsqueda. Solo admins. |
 | `candidatos` | Base de talento reutilizable. `tags` y `minutas` en jsonb. |
 | `postulaciones` | Candidato × búsqueda. Etapas: Sourcing → Contactado → Entrevista LT → Presentado → Entrevista cliente → Oferta → Contratado / Descartado. `etapas` (jsonb) es el historial de cambios de etapa y lo arma **solo el servidor** (`conEtapas` en `server/seguimiento.js`). Al descartar se pide `motivo` (lista fija) y `motivoDetalle`. |
 | `links_cliente` | Link privado de solo lectura por búsqueda (`/c/<token>`), con textos revisados para el cliente. |
@@ -69,7 +68,7 @@ Jerarquía: `recruiter` < `admin` (Administradora) < `socio` (constante `RANK` e
 
 ## Vista de recruiter (`#recruiters`, `#recruiter/<nombre>`)
 
-- Socios y Administradora ven el resumen del equipo y el detalle de cualquier recruiter; una recruiter ve solo su panel ("Mi panel").
+- Los admins ven el resumen del equipo y el detalle de cualquier recruiter; una recruiter ve solo su panel ("Mi panel").
 - Indicadores por período (12 meses, año o todo): activas vs. capacidad, iniciadas, cerradas, éxito (cerradas / cerradas + canceladas), time to fill vs. equipo, días a la primera terna, presentados por búsqueda, tendencia mensual, funnel, clientes y comisiones.
 - Comisiones de una recruiter: `GET /api/recruiter/comisiones` (`server/recruiters.js`) devuelve solo las suyas, sin montos de facturas. El nombre se resuelve contra Equipo (igual o mismo primer nombre).
 
@@ -85,7 +84,7 @@ Los pedidos están en la pantalla "Pedidos de mejora" (tabla `feedback`). Al ter
 
 ## Digest automático y Bandeja de propuestas
 
-- `server/digest.js`: endpoints `/api/ingest/*` (protegidos con el secreto `INGEST_TOKEN`, para procesos automáticos) y `/api/propuestas` (socios y administradora).
+- `server/digest.js`: endpoints `/api/ingest/*` (protegidos con el secreto `INGEST_TOKEN`, para procesos automáticos) y `/api/propuestas` (admins).
   - `GET /api/ingest/contexto`: búsquedas, candidatos, clientes, leads y facturas pendientes en formato compacto.
   - `GET /api/ingest/google?desde=ISO`: mails y eventos nuevos de las cuentas @lemontalent.com (cuenta de servicio con delegación de dominio; secreto `GOOGLE_SA_JSON`).
   - `POST /api/ingest/propuestas`: carga propuestas. Cada una: `{ref, fuente, cuenta, fecha, resumen, evidencia, link, coleccion, registroId, op, datos}`. `op`: crear | actualizar | bitacora | minuta. Se deduplica por `ref`.

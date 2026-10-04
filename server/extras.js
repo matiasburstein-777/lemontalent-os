@@ -107,7 +107,7 @@ export function registerExtras(app, { db, pool, S, auth, rank, RANK, R, newId })
       const params = []; const where = [];
       if (coleccion) { params.push(coleccion); where.push(`coleccion = $${params.length}`); }
       if (registro) { params.push(registro); where.push(`registro_id = $${params.length}`); }
-      if (req.user.rol !== "socio") { params.push(VISIBLE[req.user.rol] || VISIBLE.recruiter); where.push(`coleccion = ANY($${params.length})`); }
+      if (req.user.rol !== "admin") { params.push(VISIBLE[req.user.rol] || VISIBLE.recruiter); where.push(`coleccion = ANY($${params.length})`); }
       const lim = Math.min(Number(limite) || 300, 1000);
       const { rows } = await pool.query(`SELECT id, fecha, usuario_id, coleccion, registro_id, accion, cambios FROM historial ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY fecha DESC LIMIT ${lim}`, params);
       res.json(rows.map((r) => ({ id: r.id, fecha: r.fecha, usuarioId: r.usuario_id, coleccion: r.coleccion, registroId: r.registro_id, accion: r.accion, cambios: r.cambios })));
@@ -115,14 +115,14 @@ export function registerExtras(app, { db, pool, S, auth, rank, RANK, R, newId })
   });
 
   // ---------- papelera ----------
-  app.get("/api/papelera", auth("socio"), async (req, res, next) => {
+  app.get("/api/papelera", auth("admin"), async (req, res, next) => {
     try {
       await pool.query("DELETE FROM papelera WHERE fecha < now() - interval '30 days'");
       const { rows } = await pool.query("SELECT id, fecha, usuario_id, coleccion, registro_id, datos FROM papelera ORDER BY fecha DESC LIMIT 500");
       res.json(rows.map((r) => ({ id: r.id, fecha: r.fecha, usuarioId: r.usuario_id, coleccion: r.coleccion, registroId: r.registro_id, datos: r.datos })));
     } catch (e) { next(e); }
   });
-  app.post("/api/papelera/:id/restaurar", auth("socio"), async (req, res, next) => {
+  app.post("/api/papelera/:id/restaurar", auth("admin"), async (req, res, next) => {
     try {
       const { rows } = await pool.query("SELECT * FROM papelera WHERE id = $1", [req.params.id]);
       const p = rows[0]; if (!p) return res.status(404).json({ error: "Ya no está en la papelera." });
@@ -175,7 +175,7 @@ export function registerExtras(app, { db, pool, S, auth, rank, RANK, R, newId })
     try {
       const { rows } = await pool.query("SELECT id, usuario_id, coleccion, registro_id, nombre FROM archivos WHERE id=$1", [req.params.id]);
       const a = rows[0]; if (!a) return res.json({ ok: true });
-      if (a.usuario_id !== req.user.id && req.user.rol !== "socio") return res.status(403).json({ error: "Solo quien lo subió o un socio puede borrarlo." });
+      if (a.usuario_id !== req.user.id && req.user.rol !== "admin") return res.status(403).json({ error: "Solo quien lo subió o un admin puede borrarlo." });
       await pool.query("DELETE FROM archivos WHERE id=$1", [a.id]);
       await H.registrar(req.user, a.coleccion, a.registro_id, "editar", { archivo: a.nombre }, { archivo: null });
       res.json({ ok: true });
@@ -200,7 +200,7 @@ export function registerExtras(app, { db, pool, S, auth, rank, RANK, R, newId })
       res.json(b);
     } catch (e) { next(e); }
   };
-  app.get("/api/backup", auth("socio"), enviarBackup);
+  app.get("/api/backup", auth("admin"), enviarBackup);
   app.get("/api/ingest/backup", ingest, enviarBackup);
 
   return H;

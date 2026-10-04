@@ -1,5 +1,5 @@
 // Vista de recruiter: comisiones propias. Una recruiter solo recibe las suyas (sin montos de facturas);
-// socios y Administradora pueden pedir las de cualquiera con ?recruiter=Nombre.
+// los admins pueden pedir las de cualquiera con ?recruiter=Nombre.
 const keyN = (s) => String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 // Nombre de recruiter (como figura en Equipo) que corresponde a un usuario: nombre igual, o mismo primer nombre si es único.

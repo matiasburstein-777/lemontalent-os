@@ -1,6 +1,6 @@
 // Digest automático: lectura de fuentes (Gmail y Calendar vía Google Workspace) y Bandeja de propuestas.
 // Flujo: un proceso externo (tarea programada de Claude) llama a /api/ingest/* con INGEST_TOKEN,
-// lee novedades, y carga PROPUESTAS. Nada se escribe en las tablas hasta que un socio o la administradora aprueba.
+// lee novedades, y carga PROPUESTAS. Nada se escribe en las tablas hasta que un admin aprueba.
 import { conEtapas } from "./seguimiento.js";
 import crypto from "node:crypto";
 import { eq, desc } from "drizzle-orm";
@@ -134,7 +134,7 @@ export function registerDigest(app, { db, pool, S, auth, rank, RANK, R, clean, n
     } catch (e) { next(e); }
   });
 
-  // ---------- Bandeja de propuestas (socios y administradora) ----------
+  // ---------- Bandeja de propuestas (admins) ----------
   app.get("/api/propuestas", auth("admin"), async (req, res, next) => {
     try { res.json(await db.select().from(S.propuestas).orderBy(desc(S.propuestas.creado)).limit(800)); } catch (e) { next(e); }
   });

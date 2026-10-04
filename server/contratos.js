@@ -8,7 +8,7 @@ export function registerContratos(app, { pool, auth }) {
     }
     if (!listo) console.error("No se pudo agregar la etiqueta a archivos.");
   })();
-  const RANKS = { recruiter: 1, admin: 2, socio: 3 };
+  const RANKS = { recruiter: 1, admin: 3 };
   app.get("/api/archivos-resumen", auth(), async (req, res, next) => {
     try {
       const col = String(req.query.coleccion || "clientes");

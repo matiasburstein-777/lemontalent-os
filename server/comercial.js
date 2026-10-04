@@ -35,7 +35,7 @@ export function registerComercial(app, { pool, auth, HX }) {
   pool.query(COMERCIAL_SQL).catch((e) => console.error("No se pudieron agregar columnas comerciales:", e.message));
 
   // Migración: ?aplicar=1 la ejecuta; sin eso devuelve el plan (no cambia nada).
-  app.post("/api/comercial/migrar", auth("socio"), async (req, res, next) => {
+  app.post("/api/comercial/migrar", auth("admin"), async (req, res, next) => {
     const client = await pool.connect(); let suelto = false;
     try {
       const aplicar = req.query.aplicar === "1";

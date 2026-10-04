@@ -69,7 +69,7 @@ export function registerUnipile(app, { db, S, auth, rank, RANK }) {
     } catch (e) { next(e); }
   });
 
-  // Cuentas conectadas: cada uno ve las suyas; socios y administradora ven todas.
+  // Cuentas conectadas: cada uno ve las suyas; los admins ven todas.
   app.get("/api/unipile/cuentas", auth(), async (req, res, next) => {
     try {
       if (!listo()) return res.json({ configurado: false, cuentas: [] });
@@ -90,7 +90,7 @@ export function registerUnipile(app, { db, S, auth, rank, RANK }) {
     } catch (e) { next(e); }
   });
 
-  // Cambiar filtro (el dueño de la cuenta o un socio/administradora).
+  // Cambiar filtro (el dueño de la cuenta o un admin).
   app.patch("/api/unipile/cuentas/:id", auth(), async (req, res, next) => {
     try {
       const cfg = await getCfg(); const c = cfg.cuentas[req.params.id] || {};
@@ -106,7 +106,7 @@ export function registerUnipile(app, { db, S, auth, rank, RANK }) {
   app.delete("/api/unipile/cuentas/:id", auth(), async (req, res, next) => {
     try {
       const cfg = await getCfg(); const c = cfg.cuentas[req.params.id] || {};
-      if (c.usuarioId !== req.user.id && rank(req.user) < RANK.socio) return res.status(403).json({ error: "Esta cuenta no es tuya." });
+      if (c.usuarioId !== req.user.id && rank(req.user) < RANK.admin) return res.status(403).json({ error: "Esta cuenta no es tuya." });
       await up("/accounts/" + encodeURIComponent(req.params.id), { method: "DELETE" });
       delete cfg.cuentas[req.params.id]; await setCfg(cfg);
       res.json({ ok: true });

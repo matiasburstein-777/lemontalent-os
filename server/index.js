@@ -41,14 +41,14 @@ async function currentUser(req) {
   const [u] = await db.select().from(S.users).where(eq(S.users.id, req.session.userId));
   return u && u.activo ? u : null;
 }
-// Jerarquía de roles: recruiter < admin (Administradora) < socio
-const RANK = { recruiter: 0, admin: 1, socio: 2 };
+// Roles: recruiter (operación) y admin (acceso total). Socio y Administradora se unificaron en admin.
+const RANK = { recruiter: 0, admin: 2 };
 const rank = (u) => RANK[u && u.rol] ?? 0;
 const auth = (rol) => async (req, res, next) => {
   try {
     const u = await currentUser(req);
     if (!u) return res.status(401).json({ error: "Iniciá sesión para continuar." });
-    if (rol && rank(u) < RANK[rol]) return res.status(403).json({ error: rol === "socio" ? "Solo socios pueden ver o cambiar esto." : "No tenés permiso para ver o cambiar esto." });
+    if (rol && rank(u) < RANK[rol]) return res.status(403).json({ error: "No tenés permiso para ver o cambiar esto." });
     req.user = u; next();
   } catch (e) { next(e); }
 };
@@ -81,12 +81,11 @@ app.get("/api/users", auth("admin"), async (req, res) => res.json((await db.sele
 app.post("/api/users", auth("admin"), async (req, res) => {
   const { email, nombre, rol, password } = req.body || {};
   if (!email || !nombre || !password || String(password).length < 8) return res.status(400).json({ error: "Completá nombre, email y una contraseña de al menos 8 caracteres." });
-  // Una administradora solo crea recruiters; un socio elige cualquier rol.
-  if (req.user.rol !== "socio" && rol != null && rol !== "recruiter")
+  if (req.user.rol !== "admin" && rol != null && rol !== "recruiter")
     return res.status(403).json({ error: "Una administradora solo puede crear usuarios Recruiter." });
-  if (req.user.rol === "socio" && rol != null && RANK[rol] === undefined)
+  if (req.user.rol === "admin" && rol != null && RANK[rol] === undefined)
     return res.status(400).json({ error: "Rol inválido." });
-  const rolFinal = req.user.rol === "socio" ? (rol || "recruiter") : "recruiter";
+  const rolFinal = req.user.rol === "admin" ? (rol || "recruiter") : "recruiter";
   const u = { id: newId("u"), email: String(email).trim().toLowerCase(), nombre: String(nombre).trim(), rol: rolFinal, passwordHash: await bcrypt.hash(String(password), 10), activo: true };
   try { await db.insert(S.users).values(u); } catch { return res.status(400).json({ error: "Ya existe un usuario con ese email." }); }
   res.json(publicUser(u));
@@ -94,22 +93,22 @@ app.post("/api/users", auth("admin"), async (req, res) => {
 app.patch("/api/users/:id", auth("admin"), async (req, res) => {
   const [target] = await db.select().from(S.users).where(eq(S.users.id, req.params.id));
   if (!target) return res.status(404).json({ error: "No existe ese usuario." });
-  if (req.user.rol !== "socio" && (target.rol !== "recruiter" || Object.hasOwn(req.body, "rol"))) return res.status(403).json({ error: "Solo un socio puede cambiar roles o editar socios y administradoras." });
+  if (req.user.rol !== "admin" && (target.rol !== "recruiter" || Object.hasOwn(req.body, "rol"))) return res.status(403).json({ error: "No tenés permiso para cambiar roles." });
   const set = {};
   if (req.body.rol) { if (RANK[req.body.rol] === undefined) return res.status(400).json({ error: "Rol inválido." }); set.rol = req.body.rol; }
   if (typeof req.body.activo === "boolean") set.activo = req.body.activo;
   if (req.body.nombre) set.nombre = String(req.body.nombre);
-  if (req.body.email && req.user.rol === "socio") set.email = String(req.body.email).trim().toLowerCase();
+  if (req.body.email && req.user.rol === "admin") set.email = String(req.body.email).trim().toLowerCase();
   if (req.body.password) {
     if (String(req.body.password).length < 8) return res.status(400).json({ error: "La contraseña necesita al menos 8 caracteres." });
     set.passwordHash = await bcrypt.hash(String(req.body.password), 10);
   }
-  if (req.params.id === req.user.id && (set.activo === false || (set.rol && set.rol !== "socio"))) return res.status(400).json({ error: "No podés quitarte el acceso de socio a vos mismo." });
+  if (req.params.id === req.user.id && (set.activo === false || (set.rol && set.rol !== "admin"))) return res.status(400).json({ error: "No podés quitarte el acceso de admin a vos mismo." });
   await db.update(S.users).set(set).where(eq(S.users.id, req.params.id));
   res.json({ ok: true });
 });
 
-// ---------- config (equipo visible para todos, objetivos solo socios) ----------
+// ---------- config (equipo visible para todos, objetivos solo admins) ----------
 app.get("/api/config/:key", auth(), async (req, res) => {
   if (req.params.key !== "equipo" && rank(req.user) < RANK.admin) return res.status(403).json({ error: "No tenés permiso para ver esto." });
   const [row] = await db.select().from(S.config).where(eq(S.config.key, req.params.key));
@@ -123,17 +122,17 @@ app.put("/api/config/:key", auth("admin"), async (req, res) => {
 // ---------- recursos genéricos ----------
 // min: rol mínimo para leer y escribir. write: rol mínimo para escribir (si es más alto). del: quién puede borrar.
 const R = {
-  busquedas: { t: S.busquedas, min: "recruiter", del: "socio" },
-  candidatos: { t: S.candidatos, min: "recruiter", del: "socio" },
+  busquedas: { t: S.busquedas, min: "recruiter", del: "admin" },
+  candidatos: { t: S.candidatos, min: "recruiter", del: "admin" },
   postulaciones: { t: S.postulaciones, min: "recruiter", del: "todos" },
-  feedback: { t: S.feedback, min: "recruiter", del: "socio" },
+  feedback: { t: S.feedback, min: "recruiter", del: "admin" },
   busquedasFin: { t: S.busquedasFin, min: "admin" },
   facturas: { t: S.facturas, min: "admin" },
   clientes: { t: S.clientes, min: "admin" },
   leads: { t: S.leads, min: "admin" },
-  // meses: la administradora ve ingresos y TC, nunca los gastos (se quitan en el GET). Solo socios escriben.
-  meses: { t: S.meses, min: "admin", write: "socio", pk: "mes" },
-  // gastos: la Administradora los carga y marca pagos; los totales y el resultado solo los muestra el frontend a socios.
+  // meses: solo admins.
+  meses: { t: S.meses, min: "admin", write: "admin", pk: "mes" },
+  // gastos: los cargan y pagan los admins.
   gastos: { t: S.gastos, min: "admin", del: "todos" },
   gastosRecurrentes: { t: S.gastosRecurrentes, min: "admin" },
 };
@@ -141,7 +140,7 @@ function resource(req, res, escritura = false) {
   const r = R[req.params.res];
   if (!r) { res.status(404).json({ error: "Recurso desconocido." }); return null; }
   const need = escritura && r.write ? r.write : r.min;
-  if (rank(req.user) < RANK[need]) { res.status(403).json({ error: need === "socio" ? "Solo socios pueden ver o cambiar esto." : "No tenés permiso para ver o cambiar esto." }); return null; }
+  if (rank(req.user) < RANK[need]) { res.status(403).json({ error: "No tenés permiso para ver o cambiar esto." }); return null; }
   return { ...r, pk: r.pk || "id" };
 }
 const withId = (r, row) => (r.pk === "id" ? row : { ...row, id: row[r.pk] });
@@ -157,7 +156,7 @@ registerSeguimiento(app, { pool, auth, newId });
 registerGastos(app, { pool, auth });
 registerRecruiters(app, { pool, auth, rank, RANK });
 
-// Costos unitarios por año, solo ratios (nunca totales): para socios y administradoras.
+// Costos unitarios por año, solo ratios (nunca totales): para admins.
 app.get("/api/unit-costs", auth("admin"), async (req, res, next) => {
   try {
     const meses = await db.select().from(S.meses);
@@ -193,7 +192,7 @@ app.get("/api/:res", auth(), async (req, res, next) => {
   try {
     const r = resource(req, res); if (!r) return;
     let rows = (await db.select().from(r.t)).map((x) => withId(r, x));
-    if (req.params.res === "meses" && req.user.rol !== "socio")
+    if (req.params.res === "meses" && req.user.rol !== "admin")
       rows = rows.map(({ mes, tc, ingresosARS, ingresosUSD, historico }) => ({ mes, tc, ingresosARS, ingresosUSD, historico }));
     res.json(rows);
   } catch (e) { next(e); }
@@ -231,7 +230,7 @@ app.patch("/api/:res/:id", auth(), async (req, res, next) => {
 app.delete("/api/:res/:id", auth(), async (req, res, next) => {
   try {
     const r = resource(req, res, true); if (!r) return;
-    if ((r.del || "socio") === "socio" && req.user.rol !== "socio") return res.status(403).json({ error: "Solo socios pueden eliminar." });
+    if ((r.del || "admin") === "admin" && req.user.rol !== "admin") return res.status(403).json({ error: "Solo un admin puede eliminar." });
     const cols = getTableColumns(r.t);
     const antes = await HX.leer(r, req.params.id);
     await HX.aPapelera(req.user, req.params.res, req.params.id, antes);
@@ -252,12 +251,14 @@ app.use((err, req, res, next) => {
 
 // ---------- primer usuario ----------
 async function bootstrapAdmin() {
+  // Socio y Administradora se unificaron en un solo rol admin con acceso total
+  await pool.query("UPDATE users SET rol = 'admin' WHERE rol = 'socio'");
   const any = await db.select({ id: S.users.id }).from(S.users).limit(1);
   if (any.length) return;
   const email = process.env.ADMIN_EMAIL, pass = process.env.ADMIN_PASSWORD;
   if (!email || !pass) { console.warn("No hay usuarios. Definí ADMIN_EMAIL y ADMIN_PASSWORD en Secrets y reiniciá."); return; }
-  await db.insert(S.users).values({ id: newId("u"), email: email.toLowerCase(), nombre: process.env.ADMIN_NOMBRE || "Socio", rol: "socio", passwordHash: await bcrypt.hash(pass, 10), activo: true });
-  console.log("Usuario socio creado:", email);
+  await db.insert(S.users).values({ id: newId("u"), email: email.toLowerCase(), nombre: process.env.ADMIN_NOMBRE || "Admin", rol: "admin", passwordHash: await bcrypt.hash(pass, 10), activo: true });
+  console.log("Usuario admin creado:", email);
 }
 
 const PORT = process.env.PORT || 5000;

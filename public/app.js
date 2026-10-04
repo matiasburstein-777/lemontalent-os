@@ -16,7 +16,7 @@ const DEF_OBJ = {facturacionMensualARS:11000000,ticketPromedioARS:2800000,feeMin
 // ---------- state ----------
 const S = {busquedas:{},candidatos:{},postulaciones:{},equipo:null,facturas:{},fin:{},meses:{},clientes:{},leads:{},objetivos:null,feedback:{},users:[],propuestas:{},digest:null,cliDocs:null,gastos:{},gastosRec:{}};
 const loaded = {};
-let me = {id:null}, isAdmin = false, canFin = false, isAdm = false; // isAdmin = socio; canFin = socio o administradora
+let me = {id:null}, isAdmin = false, canFin = false, isAdm = false; // isAdmin = canFin = admin (acceso total); isAdm queda siempre false (rol unificado)
 let view = "panel";
 const UI = {bEstado:"Activa",bRec:"",bCli:"",bQ:"",bMode:"cards",cTab:"base",cBusq:"",cQ:"",crmTab:"leads",lQ:"",fTab:"pendientes",ecoYear:new Date().getFullYear()};
 let names = {};
@@ -186,7 +186,7 @@ const labOf = v => typeof v.label==="function" ? v.label() : v.label;
 function renderNav(){
   $("#nav").innerHTML = VIEWS.filter(v=>!v.admin||canFin).map(v=> v.sep ? `<div class="nav-sep">${v.sep}</div>` :
     `<a href="#${v.id}" data-view="${v.id}" ${view===v.id||(v.id==="recruiters"&&view==="recruiter")||(v.id==="config"&&CONFIG_VIEWS.includes(view))?'aria-current="page"':""}>${labOf(v)}${v.cnt?`<span class="cnt">${v.cnt()}</span>`:""}</a>`).join("");
-  $("#role").textContent = isAdmin ? "Socio · acceso completo" : isAdm ? "Administradora · operación y facturación" : "Recruiter · operación"; $("#who").textContent = me.nombre||"";
+  $("#role").textContent = isAdmin ? "Admin · acceso completo" : "Recruiter · operación"; $("#who").textContent = me.nombre||"";
 }
 let raf=0;
 function schedule(){ if(raf) return; raf=requestAnimationFrame(()=>{raf=0; render();}); }
@@ -645,7 +645,7 @@ function vGastos(){
     h+=`<div class="kpis">${kpi("Gastos de "+fm(k),usd(tot),`${ars(ars0)} + ${usd(usd0)} · TC ${nf0.format(tc)}`)}${kpi("Pendiente de pago",usd(tp),`${pend.length} de ${vivos.length} gastos`)}${kpi("Recurrentes",usd(vivos.filter(g=>g.recurrenteId).reduce((s,g)=>s+toUSD(g.monto,g.moneda,k),0)),"del total del mes")}</div>`;
     const porCat={}; vivos.forEach(g=>porCat[g.categoria||"Otros"]=(porCat[g.categoria||"Otros"]||0)+toUSD(g.monto,g.moneda,k));
     if(vivos.length) h+=`<section class="panel"><div class="panel-head"><h2>Por categoría</h2><span class="muted">US$ eq.</span></div>${barras(sortBy(Object.entries(porCat),x=>x[1],-1),v=>usd(v))}</section>`;
-  } else h+=`<div class="note">${pend.length} de ${vivos.length} gastos de ${fm(k)} pendientes de pago. Los totales y el resultado los ven los socios.</div>`;
+  } else h+=`<div class="note">${pend.length} de ${vivos.length} gastos de ${fm(k)} pendientes de pago. Los totales y el resultado los ven los admins.</div>`;
   h+=`<section class="panel"><div class="panel-head"><h2>Gastos de ${fm(k)}</h2><button class="btn sm" data-act="newGasto">Agregar</button></div>
   ${gs.length?`<div class="list">${gs.map(g=>`<div class="row click gasto${g.omitido?" omit":""}" data-act="openGasto" data-id="${g.id}"><div class="grow" style="min-width:0"><div><b>${esc(g.concepto)}</b>${g.recurrenteId?' <span class="tag">recurrente</span>':""}</div><div class="muted" style="font-size:12px">${esc(g.categoria||"Otros")}${g.notas?" · "+esc(g.notas):""}</div></div>
     <div class="acts" style="text-align:right"><div class="num"><b>${money(g.monto,g.moneda)}</b></div>${g.omitido?`<span class="muted" style="font-size:12px">No corresponde este mes</span>`:g.pagado?`<span class="pill ok">Pagado${g.fechaPago?" "+fd(g.fechaPago):""}</span> <button class="btn sm ghost" data-act="unGasto" data-id="${g.id}">Deshacer</button>`:`<span class="pill warn">Pendiente</span> <button class="btn sm" data-act="payGasto" data-id="${g.id}">Marcar pagado</button>`}</div></div>`).join("")}</div>`:`<div class="muted">No hay gastos cargados en ${fm(k)}.</div>`}</section>`;
@@ -1330,7 +1330,7 @@ function showLogin(){
   <div class="f"><label for="li-e">Email</label><input id="li-e" type="text" autocomplete="username" inputmode="email"></div>
   <div class="f"><label for="li-p">Contraseña</label><input id="li-p" type="password" autocomplete="current-password"></div>
   <button class="btn primary" type="submit">Ingresar</button><div id="li-err" class="muted"></div></section>
-  <p class="muted" style="font-size:12.5px">¿No tenés usuario? Pedíselo a un socio de Lemon Talent.</p></form>`;
+  <p class="muted" style="font-size:12.5px">¿No tenés usuario? Pedíselo a un admin de Lemon Talent.</p></form>`;
   setTimeout(()=>$("#li-e")?.focus(),30);
 }
 document.addEventListener("submit",async e=>{
@@ -1342,7 +1342,7 @@ document.addEventListener("submit",async e=>{
 // ---------- usuarios ----------
 function vUsuarios(){
   const us=sortBy(S.users||[],u=>u.nombre);
-  const ROLES=[{v:"socio",l:"Socio"},{v:"admin",l:"Administradora"},{v:"recruiter",l:"Recruiter"}];
+  const ROLES=[{v:"admin",l:"Admin"},{v:"recruiter",l:"Recruiter"}];
   const rolLabel=r=>(ROLES.find(x=>x.v===r)||{}).l||r;
   const editable=u=>isAdmin||u.rol==="recruiter";
   return `<section class="panel"><div class="panel-head"><h2>Usuarios y accesos</h2><button class="btn sm" data-act="newUser">Nuevo usuario</button></div>
@@ -1350,12 +1350,12 @@ function vUsuarios(){
   ${us.map(u=>`<tr><td>${esc(u.nombre)}${u.id===me.id?' <span class="tag">vos</span>':""}</td><td>${esc(u.email)}</td><td>${isAdmin?`<select id="u-r-${u.id}">${opt(ROLES,u.rol)}</select>`:esc(rolLabel(u.rol))}</td><td>${editable(u)?`<input id="u-a-${u.id}" type="checkbox"${u.activo?" checked":""} aria-label="Activo">`:(u.activo?"Sí":"No")}</td>
   <td style="white-space:nowrap">${editable(u)?`<button class="btn sm" data-act="saveUser" data-id="${u.id}">Guardar</button> <button class="btn sm ghost" data-act="resetPass" data-id="${u.id}">Nueva contraseña</button>`:""}</td></tr>`).join("")}
   </tbody></table></div>
-  <div class="note"><b>Socio</b>: ve y edita todo. <b>Administradora</b>: todo lo de recruiter más facturación y cobros, CRM, ajustes y alta de recruiters; en economics ve ingresos y costos por búsqueda, pero no los gastos ni el resultado. <b>Recruiter</b>: búsquedas, candidatos y pedidos de mejora; el servidor le bloquea los datos de dinero.</div></section>`;
+  <div class="note"><b>Admin</b>: ve y edita todo (finanzas, gastos, resultados, usuarios, papelera). <b>Recruiter</b>: búsquedas, candidatos y pedidos de mejora; el servidor le bloquea los datos de dinero.</div></section>`;
 }
 function drawerUser(id){
   const u=id?(S.users||[]).find(x=>x.id===id):null;
   const body= u ? `<div class="form">${field("Nueva contraseña (mínimo 8 caracteres)","nu-p","","text","full")}</div><div class="note">Compartile la contraseña por un canal privado y pedile que la cambie desde “Mi contraseña”.</div>`
-   : `<div class="form">${field("Nombre","nu-n","","text")}${field("Email","nu-e","","text")}${isAdmin?fsel("Rol","nu-r",[{v:"recruiter",l:"Recruiter"},{v:"admin",l:"Administradora"},{v:"socio",l:"Socio"}],"recruiter"):'<div class="f"><label>Rol</label><div>Recruiter</div></div>'}${field("Contraseña temporal (mínimo 8)","nu-p","","text")}</div>`;
+   : `<div class="form">${field("Nombre","nu-n","","text")}${field("Email","nu-e","","text")}${isAdmin?fsel("Rol","nu-r",[{v:"recruiter",l:"Recruiter"},{v:"admin",l:"Admin"}],"recruiter"):'<div class="f"><label>Rol</label><div>Recruiter</div></div>'}${field("Contraseña temporal (mínimo 8)","nu-p","","text")}</div>`;
   openDrawer(u?`Contraseña de ${u.nombre}`:"Nuevo usuario","",body,{save:{label:u?"Cambiar contraseña":"Crear usuario"}});
   drawerSave.save.fn=async()=>{
     try{
@@ -1502,7 +1502,7 @@ function vConexiones(){
   const d=S.conexiones;
   let h=`<div class="head"><div><h1>Conexiones</h1><p>Conectá tu WhatsApp y tu LinkedIn para que el sistema lea las novedades cada 2 horas y las proponga en la Bandeja. Es solo lectura: nunca envía mensajes.</p></div></div>`;
   if(!d) return h+`<div class="empty">Cargando conexiones…</div>`;
-  if(!d.configurado) return h+`<div class="empty">Falta configurar la cuenta de Unipile: un socio tiene que cargar UNIPILE_DSN y UNIPILE_API_KEY en Secrets.</div>`;
+  if(!d.configurado) return h+`<div class="empty">Falta configurar la cuenta de Unipile: un admin tiene que cargar UNIPILE_DSN y UNIPILE_API_KEY en Secrets.</div>`;
   h+=`<div class="toolbar"><button class="btn lemon" data-act="uniLink" data-v="WHATSAPP">Conectar mi WhatsApp</button><button class="btn" data-act="uniLink" data-v="LINKEDIN">Conectar mi LinkedIn</button></div>`;
   if(!d.cuentas.length) h+=`<div class="empty">Todavía no conectaste ninguna cuenta. Tocá “Conectar mi WhatsApp” y escaneá el QR desde WhatsApp → Dispositivos vinculados.</div>`;
   else h+=`<div class="tablewrap"><table><thead><tr><th>Canal</th><th>Cuenta</th><th>De</th><th>Estado</th><th>Qué lee el sistema</th><th></th></tr></thead><tbody>
@@ -1751,7 +1751,7 @@ function weeklyPDF(){
 // Reporte mensual (socios ven resultado; la administradora solo ingresos)
 function drawerRepMensual(){
   const meses=lastMonths(18).reverse();
-  openDrawer("Reporte mensual","Resumen del mes para socios",`<div class="form">${fsel("Mes","rm-mes",meses.map(k=>({v:k,l:fm(k)})),meses[0])}</div><div class="note">Incluye facturación, cobranza, búsquedas, time to fill y comercial.${isAdmin?" También gastos y resultado.":""}</div>`,{save:{label:"Generar PDF"}});
+  openDrawer("Reporte mensual","Resumen del mes",`<div class="form">${fsel("Mes","rm-mes",meses.map(k=>({v:k,l:fm(k)})),meses[0])}</div><div class="note">Incluye facturación, cobranza, búsquedas, time to fill y comercial.${isAdmin?" También gastos y resultado.":""}</div>`,{save:{label:"Generar PDF"}});
   drawerSave.save.fn=async()=>{ repMensual(gv("rm-mes")); closeDrawer(); };
 }
 function repMensual(k){
@@ -2096,7 +2096,7 @@ document.addEventListener("change",e=>{ if(e.target.id!=="fc-bid") return; const
 // ---------- boot ----------
 async function boot(){
   try{ me=await api("/api/me"); }catch(e){ return; }
-  isAdmin = me.rol==="socio"; isAdm = me.rol==="admin"; canFin = isAdmin||isAdm;
+  isAdmin = me.rol==="admin"||me.rol==="socio"; isAdm = false; canFin = isAdmin;
   $(".rail").hidden=false;
   route();
   await refreshAll();
