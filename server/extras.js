@@ -194,10 +194,10 @@ export function registerExtras(app, { db, pool, S, auth, rank, RANK, R, newId })
   app.get("/api/backup", auth("admin"), enviarBackup);
   app.get("/api/ingest/backup", ingest, enviarBackup);
   // Copia en Google Drive: estado de la última y subida manual (la diaria la corre scripts/backup-drive.js).
-  app.get("/api/backup/drive", auth("socio"), async (req, res, next) => {
+  app.get("/api/backup/drive", auth("admin"), async (req, res, next) => {
     try { res.json((await pool.query("SELECT value FROM config WHERE key = 'backupDrive'")).rows[0]?.value || null); } catch (e) { next(e); }
   });
-  app.post("/api/backup/drive", auth("socio"), async (req, res, next) => {
+  app.post("/api/backup/drive", auth("admin"), async (req, res, next) => {
     try { res.json(await backupDiario(pool)); } catch (e) { next(e); }
   });
   app.post("/api/ingest/backup-drive", ingest, async (req, res, next) => {
