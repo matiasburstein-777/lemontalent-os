@@ -74,13 +74,14 @@ function pnl(k){
     // Ingresos y comisiones salen de las facturas (por fecha de emisión); de la planilla solo quedan los gastos fijos.
     const fs=vals(S.facturas).filter(f=>!f.historico && ym(f.fechaEmision)===k);
     ingARS=fs.filter(f=>f.moneda!=="USD").reduce((s,f)=>s+(f.monto||0),0); ingUSD=fs.filter(f=>f.moneda==="USD").reduce((s,f)=>s+(f.monto||0),0);
-    gastos=(h.gastos||[]).filter(g=>!/recruiters? freelance/i.test(g.concepto||"")).map(g=>({...g}));
+    gastos=(h.gastos||[]).filter(g=>!/recruiters? freelance/i.test(g.concepto||"")).map(g=>({...g,categoria:catGasto(g.concepto)}));
+    gastos.push(...gastosDelMes(k).map(g=>({concepto:g.concepto,moneda:g.moneda,monto:g.monto||0,categoria:g.categoria||"Otros",id:g.id})));
     const comARS=fs.filter(f=>f.monedaComision!=="USD").reduce((s,f)=>s+(f.comision||0),0), comUSD=fs.filter(f=>f.monedaComision==="USD").reduce((s,f)=>s+(f.comision||0),0);
-    if(comARS) gastos.push({concepto:"Comisiones recruiters (auto)",moneda:"ARS",monto:comARS,auto:true});
-    if(comUSD) gastos.push({concepto:"Comisiones recruiters USD (auto)",moneda:"USD",monto:comUSD,auto:true});
+    if(comARS) gastos.push({concepto:"Comisiones recruiters (auto)",moneda:"ARS",monto:comARS,auto:true,categoria:"Comisiones recruiters"});
+    if(comUSD) gastos.push({concepto:"Comisiones recruiters USD (auto)",moneda:"USD",monto:comUSD,auto:true,categoria:"Comisiones recruiters"});
     source="facturas";
   }
-  else if(h){ ingARS=h.ingresosARS||0; ingUSD=h.ingresosUSD||0; gastos=(h.gastos||[]).map(g=>({...g})); source="planilla"; }
+  else if(h){ ingARS=h.ingresosARS||0; ingUSD=h.ingresosUSD||0; gastos=(h.gastos||[]).map(g=>({...g,categoria:catGasto(g.concepto)})); source="planilla"; }
   else{
     const fs=vals(S.facturas).filter(f=>!f.historico && ym(f.fechaEmision)===k);
     ingARS=fs.filter(f=>f.moneda!=="USD").reduce((s,f)=>s+(f.monto||0),0);
@@ -100,7 +101,20 @@ function pnl(k){
 const gastosDelMes = k => vals(S.gastos).filter(g=>g.mes===k&&!g.omitido);
 const sigMes = k => { const [y,m]=k.split("-").map(Number); return m===12?`${y+1}-01`:`${y}-${String(m+1).padStart(2,"0")}`; };
 const antMes = k => { const [y,m]=k.split("-").map(Number); return m===1?`${y-1}-12`:`${y}-${String(m-1).padStart(2,"0")}`; };
-const primerMesSistema = () => { const hs=Object.keys(hist()).sort(); return hs.length?sigMes(hs[hs.length-1]):"2000-01"; };
+// Primer mes en que se cargan gastos en el sistema: el siguiente al último mes de la planilla que trae gastos
+// (la Administradora no recibe los gastos de la planilla: usa el dato que devuelve el servidor)
+const primerMesSistema = () => { if(!isAdmin) return S.primerMes||curYM(); const hs=Object.values(hist()).filter(m=>(m.gastos||[]).length).map(m=>m.id).sort(); return hs.length?sigMes(hs[hs.length-1]):"2000-01"; };
+// Categoría de un concepto de la planilla Economics (los gastos nuevos ya traen la suya)
+function catGasto(c){ const t=keyN(c);
+  if(/monotributo|impuesto|iibb|afip|ganancias/.test(t)) return "Impuestos";
+  if(/freelance|comision/.test(t)) return "Comisiones recruiters";
+  if(/sueldo|aguinaldo|honorario|extras|^maga$|magui|gime|cami/.test(t)) return "Sueldos y honorarios";
+  if(/google|linkedin|chatgpt|zonajobs|notion|slack|zoom|canva|software/.test(t)) return "Software y herramientas";
+  if(/cowork|oficina|alquiler/.test(t)) return "Oficina";
+  if(/web|diseno|regalo|marketing|evento/.test(t)) return "Marketing";
+  if(/contador|legal|abogad/.test(t)) return "Contador y legales";
+  if(/banco|bancari/.test(t)) return "Bancos y comisiones";
+  return "Otros"; }
 function monthsOfYear(y){ const out=[]; const cur=curYM(); for(let m=1;m<=12;m++){ const k=`${y}-${String(m).padStart(2,"0")}`; if(k<=cur) out.push(k);} return out; }
 function lastMonths(n){ const out=[]; const d=new Date(); d.setDate(1); for(let i=n-1;i>=0;i--){ const x=new Date(d.getFullYear(),d.getMonth()-i,1); out.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);} return out; }
 
@@ -612,7 +626,7 @@ function listaFacturas(list,modo){
 
 // ---- Gastos ----
 function vGastos(){
-  if(!UI._gApl){ UI._gApl=1; api("/api/gastos-recurrentes/aplicar",{method:"POST"}).then(()=>refresh("gastos")).catch(()=>{}); }
+  if(!UI._gApl){ UI._gApl=1; api("/api/gastos-recurrentes/aplicar",{method:"POST"}).then(j=>{ S.primerMes=j.primerMes; refresh("gastos"); }).catch(()=>{}); }
   const min=primerMesSistema(); let k=UI.gMes||curYM(); if(k<min) k=UI.gMes=min;
   const gs=sortBy(vals(S.gastos).filter(g=>g.mes===k),g=>`${g.recurrenteId?0:1}${g.categoria||""}${g.concepto}`);
   const vivos=gs.filter(g=>!g.omitido), pend=vivos.filter(g=>!g.pagado);
@@ -628,7 +642,7 @@ function vGastos(){
   ${gs.length?`<div class="list">${gs.map(g=>`<div class="row click gasto${g.omitido?" omit":""}" data-act="openGasto" data-id="${g.id}"><div class="grow" style="min-width:0"><div><b>${esc(g.concepto)}</b>${g.recurrenteId?' <span class="tag">recurrente</span>':""}</div><div class="muted" style="font-size:12px">${esc(g.categoria||"Otros")}${g.notas?" · "+esc(g.notas):""}</div></div>
     <div class="acts" style="text-align:right"><div class="num"><b>${money(g.monto,g.moneda)}</b></div>${g.omitido?`<span class="muted" style="font-size:12px">No corresponde este mes</span>`:g.pagado?`<span class="pill ok">Pagado${g.fechaPago?" "+fd(g.fechaPago):""}</span> <button class="btn sm ghost" data-act="unGasto" data-id="${g.id}">Deshacer</button>`:`<span class="pill warn">Pendiente</span> <button class="btn sm" data-act="payGasto" data-id="${g.id}">Marcar pagado</button>`}</div></div>`).join("")}</div>`:`<div class="muted">No hay gastos cargados en ${fm(k)}.</div>`}</section>`;
   const recs=sortBy(vals(S.gastosRec),r=>`${r.activo===false?1:0}${r.concepto}`);
-  h+=`<section class="panel"><div class="panel-head"><h2>Gastos recurrentes</h2><button class="btn sm" data-act="newRecurrente">Nuevo recurrente</button></div>
+  h+=`<section class="panel"><div class="panel-head"><h2>Gastos recurrentes</h2><span style="display:flex;gap:6px;flex-wrap:wrap">${isAdmin?`<button class="btn sm ghost" data-act="sugerirRec">Sugerir desde la planilla</button>`:""}<button class="btn sm" data-act="newRecurrente">Nuevo recurrente</button></span></div>
   <div class="muted" style="font-size:13px">Se cargan solos todos los meses con su monto. Si un mes cambia, editá el gasto de ese mes; si cambia de acá en adelante, editá el recurrente.</div>
   ${recs.length?`<div class="list">${recs.map(r=>`<div class="row click" data-act="openRecurrente" data-id="${r.id}"><div class="grow" style="min-width:0"><b>${esc(r.concepto)}</b><div class="muted" style="font-size:12px">${esc(r.categoria||"Otros")} · desde ${fm(r.desde)}${r.hasta?" hasta "+fm(r.hasta):""}</div></div><div style="text-align:right"><div class="num">${money(r.monto,r.moneda)}</div>${r.activo===false?'<span class="pill">De baja</span>':'<span class="pill ok">Activo</span>'}</div></div>`).join("")}</div>`:`<div class="muted">Todavía no hay gastos recurrentes.</div>`}</section>`;
   return h;
@@ -661,6 +675,27 @@ function drawerGasto(id){
     if(await write("gastos/"+(id||newId("g")),id?datos:{...datos,mes,creado:today()},id?"update":"set")){ toast(id?"Gasto actualizado":"Gasto agregado"); closeDrawer(); }
   };
   if(drawerSave.del) drawerSave.del.fn=async()=>{ if(drawerSave.del.armed){ if(await write("gastos/"+id,null,"delete")){toast("Gasto eliminado");closeDrawer();} } else { drawerSave.del.armed=true; $("[data-act=drawerDel]").textContent="Confirmar: eliminar"; } };
+}
+// Propone como recurrentes los gastos que se repiten en los últimos meses de la planilla (sin comisiones ni extras)
+function drawerSugerirRec(){
+  const ms=Object.values(hist()).filter(m=>(m.gastos||[]).length).sort((a,b)=>a.id<b.id?-1:1).slice(-4);
+  const ya=new Set(vals(S.gastosRec).map(r=>keyN(r.concepto)));
+  const por={}; ms.forEach(m=>(m.gastos||[]).forEach(g=>{ const k=keyN(g.concepto); if(!k||/freelance|comision|aguinaldo|extra/.test(k)) return; (por[k] ||= {concepto:g.concepto,n:0,ultimo:null}); por[k].n++; por[k].ultimo={moneda:g.moneda||"ARS",monto:Number(g.monto)||0,mes:m.id}; }));
+  const sug=sortBy(vals(por).filter(x=>x.n>=3),x=>x.concepto);
+  const desde=primerMesSistema();
+  if(!sug.length){ toast("No encontré gastos que se repitan en los últimos meses de la planilla.",true); return; }
+  const body=`<div class="note">Gastos que aparecen en al menos 3 de los últimos ${ms.length} meses de la planilla (${fm(ms[0].id)} a ${fm(ms[ms.length-1].id)}). Se crean como recurrentes desde el mes que elijas, con el último monto. Revisá y destildá los que no van.</div>
+  <div class="form">${field("Desde","sg-des",desde,"month")}</div>
+  <div class="list">${sug.map((x,i)=>`<div class="row" style="flex-wrap:wrap;gap:8px"><label class="check" style="flex:1 1 200px"><input id="sg-ok-${i}" type="checkbox"${ya.has(keyN(x.concepto))?"":" checked"}> <b>${esc(x.concepto)}</b>${ya.has(keyN(x.concepto))?' <span class="tag">ya existe</span>':""}</label>
+    <select id="sg-cat-${i}" style="flex:1 1 150px">${opt(CATEGORIAS_GASTO,catGasto(x.concepto))}</select><select id="sg-mnd-${i}" style="width:80px">${opt(["ARS","USD"],x.ultimo.moneda)}</select><input id="sg-mon-${i}" type="number" step="any" value="${x.ultimo.monto}" style="width:130px" aria-label="Monto"></div>`).join("")}</div>`;
+  openDrawer("Sugerir recurrentes",`${sug.length} gastos que se repiten`,body,{save:{label:"Crear los seleccionados"}});
+  drawerSave.save.fn=async()=>{
+    const des=gv("sg-des"); if(!des){ toast("Elegí desde qué mes.",true); return; }
+    let n=0;
+    for(let i=0;i<sug.length;i++){ if(!gv("sg-ok-"+i)) continue; const mon=gn("sg-mon-"+i); if(mon==null) continue;
+      const id=newId("r"); if(await write("gastosRecurrentes/"+id,{concepto:sug[i].concepto,categoria:gv("sg-cat-"+i),moneda:gv("sg-mnd-"+i),monto:mon,desde:des,hasta:"",notas:"Sugerido desde la planilla Economics",activo:true})){ n++; try{ await api(`/api/gastos-recurrentes/${id}/propagar`,{method:"POST",body:JSON.stringify({desde:des})}); }catch(e){} } }
+    await refresh("gastos"); toast(`${n} recurrentes creados`); closeDrawer();
+  };
 }
 function drawerRecurrente(rid){
   const r=rid?S.gastosRec[rid]:{moneda:"ARS",categoria:"Otros",desde:UI.gMes||curYM(),activo:true};
@@ -711,6 +746,7 @@ function vEconomics(){
   <div class="tablewrap"><table><thead><tr><th>Mes</th><th class="r">Ingresos ARS</th><th class="r">Ingresos USD</th><th class="r">TC</th><th class="r">Ingresos US$ eq.</th><th class="r">Gastos US$ eq.</th><th class="r">Resultado</th><th class="r">Margen</th><th>Fuente</th></tr></thead><tbody>
   ${P.map(p=>`<tr class="click" data-act="openMes" data-id="${p.k}"><td>${fm(p.k)}</td><td class="r num">${ars(p.ingARS)}</td><td class="r num">${usd(p.ingUSD)}</td><td class="r num">${nf0.format(p.tc)}</td><td class="r num">${usd(p.ingTot)}</td><td class="r num">${usd(p.gasTot)}</td><td class="r num" style="color:${p.res<0?"var(--crit)":"inherit"}">${usd(p.res)}</td><td class="r num">${pct(p.margen)}</td><td><span class="tag">${p.source}</span></td></tr>`).join("")}
   </tbody><tfoot><tr><td>Total ${y}</td><td class="r num">${ars(sum(p=>p.ingARS))}</td><td class="r num">${usd(sum(p=>p.ingUSD))}</td><td></td><td class="r num">${usd(ing)}</td><td class="r num">${usd(gas)}</td><td class="r num">${usd(res)}</td><td class="r num">${pct(ing?res/ing:null)}</td><td></td></tr></tfoot></table></div>
+  ${(()=>{ const pc={}; P.forEach(p=>p.gastos.forEach(g=>{ const c=g.categoria||"Otros"; pc[c]=(pc[c]||0)+toUSD(g.monto,g.moneda,p.k); })); const rows=sortBy(Object.entries(pc),x=>x[1],-1); return rows.length?`<section class="panel"><div class="panel-head"><h2>Gastos por categoría ${y}</h2><span class="muted">US$ eq.</span></div>${barras(rows.map(([c,v])=>[`${c} · ${pct(gas?v/gas:null)}`,v]),v=>usd(v))}</section>`:""; })()}
   <h2>Unidad: la búsqueda</h2>
   <div class="kpis">
     ${kpi("Fee promedio por cierre",ars(feeCierre),`${cierres.length} facturas de cierre · objetivo ${short(o.ticketPromedioARS)}`, feeCierre&&o.ticketPromedioARS?feeCierre/o.ticketPromedioARS:null)}
@@ -1141,7 +1177,7 @@ function drawerMes(k){
     const porCat={}; p.gastos.forEach(g=>{ const c=g.categoria||(sistema?"Otros":"Planilla"); porCat[c]=(porCat[c]||0)+toUSD(g.monto,g.moneda,k); });
     body+=`<div class="section"><span class="label">Gastos por categoría (US$ eq.)</span>${p.gastos.length?barras(sortBy(Object.entries(porCat),x=>x[1],-1),v=>usd(v)):'<div class="muted" style="font-size:13px">Sin gastos cargados.</div>'}</div>
     <div class="section"><span class="label">Detalle de gastos</span>${p.gastos.length?`<div class="list">${sortBy(p.gastos,g=>-toUSD(g.monto,g.moneda,k)).map(g=>`<div class="row${g.id?" click":""}"${g.id?` data-act="openGasto" data-id="${g.id}"`:""}><div class="grow"><div>${esc(g.concepto)}</div>${g.categoria?`<div class="muted" style="font-size:12px">${esc(g.categoria)}</div>`:""}</div><span class="num">${money(g.monto,g.moneda)}</span></div>`).join("")}</div>`:""}
-    ${sistema?`<div><button class="btn sm" data-act="irGastos" data-v="${k}">Cargar o editar gastos de ${fm(k)}</button></div>`:`<div class="note">Gastos importados de la planilla Economics (solo lectura).</div>`}</div>`;
+    ${k>=primerMesSistema()?`<div><button class="btn sm" data-act="irGastos" data-v="${k}">Cargar o editar gastos de ${fm(k)}</button></div>`:`<div class="note">Gastos importados de la planilla Economics (solo lectura). Categorías asignadas según el concepto.</div>`}</div>`;
     if(sistema) body+=`<div class="section"><span class="label">Tipo de cambio</span><div class="form">${field("ARS por USD de "+fm(k),"m-tc",m.tc||p.tc,"number")}</div></div>`;
   }
   openDrawer("Detalle de "+fm(k),p.source==="planilla"?"Planilla Economics":p.source==="facturas"?"Ingresos de facturas · gastos de la planilla":"Ingresos de facturas · gastos cargados",body,isAdmin&&sistema?{save:{label:"Guardar tipo de cambio"}}:{});
@@ -1216,6 +1252,7 @@ document.addEventListener("click",async e=>{
     case "openGasto": drawerGasto(id); break;
     case "omitGasto": { const g=S.gastos[id]; if(g&&await write("gastos/"+id,{omitido:!g.omitido},"update")){ toast(g.omitido?"El gasto vuelve a contar este mes":"Listo: este mes no se cuenta"); closeDrawer(); } break; }
     case "newRecurrente": drawerRecurrente(null); break;
+    case "sugerirRec": if(isAdmin) drawerSugerirRec(); break;
     case "openRecurrente": drawerRecurrente(id); break;
     case "irGastos": UI.fTab="gastos"; UI.gMes=v; closeDrawer(); if(location.hash!=="#cobros") location.hash="#cobros"; else render(); break;
     case "calcCom": { const r=recruiters().find(x=>x.nombre===gv("fc-rec")); const m=gn("fc-mon"); if(!r||!m){toast("Elegí recruiter y monto.",true);break;} document.getElementById("fc-com").value=Math.round(m*(+r.comisionPct||0)/100); document.getElementById("fc-cmnd").value=gv("fc-mnd"); break; }

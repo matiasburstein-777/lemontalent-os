@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS gastos_recurrentes (
 const mesBA = () => hoyBA().slice(0, 7);
 const sigMes = (k) => { const [y, m] = k.split("-").map(Number); return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`; };
 async function primerMesSistema(pool) {
-  const { rows } = await pool.query("SELECT max(mes) AS m FROM meses WHERE historico");
+  // El siguiente al último mes de la planilla que trae gastos (un mes de planilla sin gastos se carga acá)
+  const { rows } = await pool.query("SELECT max(mes) AS m FROM meses WHERE historico AND jsonb_array_length(coalesce(gastos,'[]'::jsonb)) > 0");
   return rows[0]?.m ? sigMes(rows[0].m) : "2000-01";
 }
 
