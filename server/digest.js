@@ -72,7 +72,7 @@ export function registerDigest(app, { db, pool, S, auth, rank, RANK, R, clean, n
           ops: OPS, colecciones: COLECCIONES,
           etapasPostulacion: ["Sourcing", "Contactado", "Entrevista LT", "Presentado", "Entrevista cliente", "Oferta", "Contratado", "Descartado"],
           estadosBusqueda: ["Activa", "En pausa", "Cerrada", "Cancelada"],
-          etapasLead: ["Nuevo", "Contactado", "En conversación", "Propuesta enviada", "Ganado", "Perdido"],
+          etapasLead: ["Identificado", "Contactado", "En conversación", "Propuesta enviada", "Ganado", "Perdido"],
         },
       });
     } catch (e) { next(e); }
