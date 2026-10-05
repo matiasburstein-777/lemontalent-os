@@ -1,0 +1,36 @@
+# Tests en cada push y pull request: permisos por rol, link del cliente, login y sintaxis del frontend.
+name: Tests
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lt_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lt_test
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Sintaxis del frontend y del servidor
+        run: |
+          node -e "new Function(require('fs').readFileSync('public/app.js','utf8'))"
+          for f in server/*.js scripts/*.js; do node --check "$f"; done
+      - name: Crear las tablas en la base de prueba
+        run: npx drizzle-kit push --force
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+      - run: npm test

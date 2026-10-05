@@ -1,5 +1,6 @@
 // Backup de la base: arma un JSON con todas las tablas y lo sube comprimido a una carpeta de Google Drive.
-// Sin contenido de archivos adjuntos (CV) ni hashes de contraseña. Se guardan los últimos 30 días.
+// El JSON va sin hashes de contraseña ni contenido de archivos; los archivos (CV, contratos) se copian aparte a la
+// subcarpeta "Archivos adjuntos" (una vez cada uno). Los backups JSON se guardan 30 días.
 // Secretos: GOOGLE_SA_JSON, BACKUP_DRIVE_FOLDER_ID y, si la carpeta no está en una unidad compartida
 // donde la cuenta de servicio es miembro, BACKUP_DRIVE_USER (usuario @lemontalent.com a impersonar).
 import zlib from "node:zlib";
@@ -71,9 +72,46 @@ export async function subirBackupADrive(pool) {
     borrados++;
   }
 
+  // CVs y contratos: el JSON no los incluye, así que se copian aparte (solo los que todavía no están en Drive).
+  let archivos;
+  try { archivos = await subirArchivosADrive(pool, token, carpeta); }
+  catch (e) { archivos = { error: e.message }; }
+
   const tablas = Object.keys(b.tablas).length;
   const registros = Object.values(b.tablas).reduce((n, t) => n + t.length, 0);
-  return { fecha: b.generado, archivo: subido.name, id: subido.id, tamano: gz.length, tablas, registros, borrados };
+  return { fecha: b.generado, archivo: subido.name, id: subido.id, tamano: gz.length, tablas, registros, borrados, archivos };
+}
+
+// Copia a la subcarpeta "Archivos adjuntos" los archivos (CV, contratos) que todavía no se subieron. Hasta 200 por corrida.
+async function subirArchivosADrive(pool, token, carpeta) {
+  await pool.query("ALTER TABLE archivos ADD COLUMN IF NOT EXISTS drive_id text");
+  const NOMBRE = "Archivos adjuntos";
+  const q = `'${carpeta}' in parents and name = '${NOMBRE}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const hay = await dfetch(`${DRIVE}?${new URLSearchParams({ q, fields: "files(id)", supportsAllDrives: "true", includeItemsFromAllDrives: "true" })}`, token);
+  const sub = hay.files?.[0]?.id || (await dfetch(`${DRIVE}?supportsAllDrives=true&fields=id`, token, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: NOMBRE, parents: [carpeta], mimeType: "application/vnd.google-apps.folder" }),
+  })).id;
+  const { rows } = await pool.query("SELECT id, coleccion, registro_id, nombre, tipo FROM archivos WHERE drive_id IS NULL ORDER BY fecha LIMIT 200");
+  let subidos = 0;
+  for (const a of rows) {
+    const { rows: [d] } = await pool.query("SELECT datos FROM archivos WHERE id = $1", [a.id]);
+    if (!d) continue;
+    const limite = "lt" + Date.now().toString(36);
+    const meta = { name: `${a.coleccion}-${a.registro_id}-${a.nombre}`, parents: [sub], mimeType: a.tipo || "application/octet-stream" };
+    const cuerpo = Buffer.concat([
+      Buffer.from(`--${limite}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${limite}\r\ncontent-type: ${meta.mimeType}\r\n\r\n`),
+      d.datos,
+      Buffer.from(`\r\n--${limite}--`),
+    ]);
+    const up = await dfetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id", token, {
+      method: "POST", headers: { "content-type": `multipart/related; boundary=${limite}` }, body: cuerpo,
+    });
+    await pool.query("UPDATE archivos SET drive_id = $1 WHERE id = $2", [up.id, a.id]);
+    subidos++;
+  }
+  const { rows: [p] } = await pool.query("SELECT count(*)::int AS n FROM archivos WHERE drive_id IS NULL");
+  return { subidos, pendientes: p.n };
 }
 
 // Corre el backup y deja el resultado (ok o error) en config.backupDrive para mostrarlo en la app.

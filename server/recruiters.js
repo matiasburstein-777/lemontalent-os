@@ -2,10 +2,13 @@
 // los admins pueden pedir las de cualquiera con ?recruiter=Nombre.
 const keyN = (s) => String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-// Nombre de recruiter (como figura en Equipo) que corresponde a un usuario: nombre igual, o mismo primer nombre si es único.
+// Nombre de recruiter (como figura en Equipo) que corresponde a un usuario: la ligada a su usuario; si no, nombre igual o mismo primer nombre si es único.
 export async function recruiterDeUsuario(pool, user) {
   const { rows } = await pool.query("SELECT value FROM config WHERE key = 'equipo'");
-  const recs = ((rows[0] && rows[0].value && rows[0].value.recruiters) || []).map((r) => r.nombre).filter(Boolean);
+  const equipo = (rows[0] && rows[0].value && rows[0].value.recruiters) || [];
+  const ligada = equipo.find((r) => r.usuarioId === user.id && r.nombre);
+  if (ligada) return ligada.nombre;
+  const recs = equipo.map((r) => r.nombre).filter(Boolean);
   const exacto = recs.find((n) => keyN(n) === keyN(user.nombre));
   if (exacto) return exacto;
   const primero = keyN(String(user.nombre || "").split(/\s+/)[0]);

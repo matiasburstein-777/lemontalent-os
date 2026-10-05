@@ -845,11 +845,12 @@ function drawerRec(n){
 // Editar equipo (recruiters, capacidad, comisión): desde la sección Equipo
 function drawerEquipo(){
   const r=recruiters();
-  const body=`<div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Activa</th><th class="r">Capacidad</th><th class="r">Comisión %</th></tr></thead><tbody>
-    ${r.map((x,i)=>`<tr><td><input id="rec-n-${i}" type="text" value="${esc(x.nombre)}" style="width:100%"></td><td><input id="rec-a-${i}" type="checkbox"${x.activa?" checked":""} aria-label="Activa"></td><td class="r"><input id="rec-c-${i}" type="number" value="${x.capacidad??4}" style="width:80px"></td><td class="r"><input id="rec-p-${i}" type="number" value="${x.comisionPct??0}" style="width:80px"></td></tr>`).join("")}
+  const us=[{v:"",l:"Sin usuario"},...sortBy((S.users||[]).filter(u=>u.activo),u=>u.nombre).map(u=>({v:u.id,l:u.nombre}))];
+  const body=`<div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Activa</th><th class="r">Capacidad</th><th class="r">Comisión %</th></tr></thead><tbody>
+    ${r.map((x,i)=>`<tr><td><input id="rec-n-${i}" type="text" value="${esc(x.nombre)}" style="width:100%"></td><td><select id="rec-u-${i}" aria-label="Usuario">${opt(us,x.usuarioId||"")}</select></td><td><input id="rec-a-${i}" type="checkbox"${x.activa?" checked":""} aria-label="Activa"></td><td class="r"><input id="rec-c-${i}" type="number" value="${x.capacidad??4}" style="width:80px"></td><td class="r"><input id="rec-p-${i}" type="number" value="${x.comisionPct??0}" style="width:80px"></td></tr>`).join("")}
     </tbody></table></div>
     <div class="toolbar"><button class="btn sm" data-act="addRec">Agregar recruiter</button><button class="btn primary" data-act="saveEquipo" data-n="${r.length}">Guardar equipo</button></div>
-    <div class="note">La capacidad es la cantidad de búsquedas simultáneas que puede llevar cada recruiter. La comisión se propone sola al cargar una factura. El nombre tiene que coincidir con el de su usuario para que vea su panel.</div>`;
+    <div class="note">La capacidad es la cantidad de búsquedas simultáneas que puede llevar cada recruiter. La comisión se propone sola al cargar una factura. Ligá cada recruiter a su usuario para que vea su panel y sus comisiones aunque el nombre no sea igual.</div>`;
   openDrawer("Editar equipo","Recruiters, capacidad y comisión",body,{});
 }
 
@@ -1296,11 +1297,13 @@ document.addEventListener("click",async e=>{
     case "cliDocDel": if(!t.dataset.armed){ t.dataset.armed="1"; t.textContent="Confirmar"; break; } try{ await api("/api/archivos/"+encodeURIComponent(id),{method:"DELETE"}); toast("Documento quitado"); await cargarCliDocs(); refrescarDocs(); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo quitar.",true); } break;
     case "archDel": if(!t.dataset.armed){ t.dataset.armed="1"; t.textContent="Confirmar"; break; } try{ await api("/api/archivos/"+encodeURIComponent(id),{method:"DELETE"}); toast("Archivo quitado"); cargarArchivos(t.dataset.col,t.dataset.reg); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo quitar.",true); } break;
     case "myPass": drawerMyPass(); break;
+    case "mailPrueba": try{ await api("/api/mail/prueba",{method:"POST"}); toast("Mail de prueba enviado: revisá tu casilla"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo enviar.",true); } break;
+    case "cerrarOtras": try{ const r=await api("/api/sesiones/cerrar-otras",{method:"POST"}); toast(r.cerradas?`Listo: se cerraron ${r.cerradas} sesiones`:"No había otras sesiones abiertas"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo.",true); } break;
     case "logout": await fetch("/api/logout",{method:"POST"}); location.reload(); break;
     case "minAdd": { const u=gv("min-u"); if(!u){toast("Pegá el link de Granola.",true);break;} flushMin(); $("#min-u").value=""; $("#min-t").value=""; $("#min-list").innerHTML=minList(); toast("Minuta agregada: guardá para confirmar"); break; }
     case "minRemove": { pendingMin.splice(+t.dataset.i,1); $("#min-list").innerHTML=minList(); break; }
     case "addRec": { const eq={...(S.equipo||{}),recruiters:[...recruiters(),{nombre:"Nueva recruiter",activa:true,capacidad:4,comisionPct:20}]}; delete eq.id; if(await write("equipo/config",eq)){ toast("Recruiter agregada: editá el nombre"); if($("#overlay .drawer")) drawerEquipo(); } break; }
-    case "saveEquipo": { const n=+t.dataset.n; const list=[]; for(let i=0;i<n;i++){ const nm=gv("rec-n-"+i); if(nm) list.push({nombre:nm,activa:gv("rec-a-"+i),capacidad:gn("rec-c-"+i)||4,comisionPct:gn("rec-p-"+i)||0}); }
+    case "saveEquipo": { const n=+t.dataset.n; const list=[]; for(let i=0;i<n;i++){ const nm=gv("rec-n-"+i); if(nm) list.push({nombre:nm,usuarioId:gv("rec-u-"+i)||undefined,activa:gv("rec-a-"+i),capacidad:gn("rec-c-"+i)||4,comisionPct:gn("rec-p-"+i)||0}); }
       const prevR=(S.equipo&&S.equipo.recruiters)||[]; for(let i=0;i<Math.min(prevR.length,n);i++){ const o=prevR[i]&&prevR[i].nombre, nn=gv("rec-n-"+i); if(o&&nn&&o!==nn){ try{ await api("/api/equipo/renombrar",{method:"POST",body:JSON.stringify({de:o,a:nn})}); }catch(e){} } }
       const eq={...(S.equipo||{}),recruiters:list}; delete eq.id; if(await write("equipo/config",eq)){ toast("Equipo guardado"); closeDrawer(); refresh("busquedas"); refresh("facturas"); } break; }
     case "saveObjetivos": { const o={facturacionMensualARS:gn("o-fac"),ticketPromedioARS:gn("o-tic"),feeMinimoARS:gn("o-fee"),timeToFillDias:gn("o-ttf"),busquedasActivas:gn("o-ba"),propuestasMes:gn("o-pr"),nuevosClientesMes:gn("o-nc")};
@@ -1351,7 +1354,17 @@ function vUsuarios(){
   ${us.map(u=>`<tr><td>${esc(u.nombre)}${u.id===me.id?' <span class="tag">vos</span>':""}</td><td>${esc(u.email)}</td><td>${isAdmin?`<select id="u-r-${u.id}">${opt(ROLES,u.rol)}</select>`:esc(rolLabel(u.rol))}</td><td>${editable(u)?`<input id="u-a-${u.id}" type="checkbox"${u.activo?" checked":""} aria-label="Activo">`:(u.activo?"Sí":"No")}</td>
   <td style="white-space:nowrap">${editable(u)?`<button class="btn sm" data-act="saveUser" data-id="${u.id}">Guardar</button> <button class="btn sm ghost" data-act="resetPass" data-id="${u.id}">Nueva contraseña</button>`:""}</td></tr>`).join("")}
   </tbody></table></div>
-  <div class="note"><b>Admin</b>: ve y edita todo (finanzas, gastos, resultados, usuarios, papelera). <b>Recruiter</b>: búsquedas, candidatos y pedidos de mejora; el servidor le bloquea los datos de dinero.</div></section>`;
+  <div class="note"><b>Admin</b>: ve y edita todo (finanzas, gastos, resultados, usuarios, papelera). <b>Recruiter</b>: búsquedas, candidatos y pedidos de mejora; el servidor le bloquea los datos de dinero.</div></section>
+  ${accesosBox()}`;
+}
+// Últimos accesos (login exitosos y fallidos): se cargan al abrir Usuarios y accesos
+function accesosBox(){
+  if(S.accesos===undefined){ S.accesos=null; api("/api/accesos").then(r=>{ S.accesos=r; schedule(); }).catch(()=>{ S.accesos=[]; schedule(); }); }
+  const L=S.accesos||[]; const ayer=new Date(Date.now()-864e5).toISOString().slice(0,10); const fallidos=L.filter(a=>!a.ok&&a.fecha>=ayer).length;
+  return `<section class="panel"><div class="panel-head"><h2>Últimos accesos</h2><span class="muted">${fallidos?`${fallidos} intentos fallidos desde ayer`:"últimos 30"}</span></div>
+  ${S.accesos===null?'<div class="empty">Cargando…</div>':!L.length?'<div class="empty">Todavía no hay accesos registrados.</div>':`<div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Resultado</th><th>IP</th></tr></thead><tbody>
+  ${L.slice(0,30).map(a=>`<tr><td class="num">${esc(a.fecha)}</td><td>${esc(a.nombre||a.email||"—")}</td><td>${a.ok?'<span class="pill ok">Entró</span>':`<span class="pill ${a.motivo==="bloqueado"?"crit":"warn"}">${esc(a.motivo||"Falló")}</span>`}</td><td class="muted">${esc(a.ip||"")}</td></tr>`).join("")}</tbody></table></div>`}
+  <div class="note">Después de 5 intentos fallidos con el mismo email desde el mismo lugar, el login se bloquea 15 minutos.</div></section>`;
 }
 function drawerUser(id){
   const u=id?(S.users||[]).find(x=>x.id===id):null;
@@ -1367,7 +1380,9 @@ function drawerUser(id){
   };
 }
 function drawerMyPass(){
-  openDrawer("Cambiar mi contraseña","",`<div class="form">${field("Contraseña actual","mp-a","","password","full")}${field("Contraseña nueva (mínimo 8)","mp-n","","password","full")}</div>`,{save:{label:"Cambiar contraseña"}});
+  openDrawer("Mi contraseña y sesiones","",`<div class="form">${field("Contraseña actual","mp-a","","password","full")}${field("Contraseña nueva (mínimo 8)","mp-n","","password","full")}</div>
+    <div class="note">Al cambiar la contraseña se cierra tu sesión en los demás dispositivos.</div>
+    <div class="section"><span class="label">Sesiones</span><p class="muted" style="margin:6px 0 10px">Tu sesión vence a los 7 días sin usar la app. Si entraste desde una compu que no es tuya, cerrá las demás sesiones.</p><button class="btn sm" data-act="cerrarOtras">Cerrar sesión en los demás dispositivos</button></div>`,{save:{label:"Cambiar contraseña"}});
   drawerSave.save.fn=async()=>{ try{ await api("/api/me/password",{method:"POST",body:JSON.stringify({actual:gv("mp-a"),nueva:gv("mp-n")})}); toast("Contraseña cambiada"); closeDrawer(); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo cambiar.",true); } };
 }
 
@@ -1429,13 +1444,16 @@ function propTarget(p){
   return id;
 }
 function propDatos(p){
-  const d=p.datos||{}; const ks=Object.keys(d).filter(k=>d[k]!==""&&d[k]!=null);
+  const d=p.datos||{}; const ks=sortBy(Object.keys(d).filter(k=>d[k]!==""&&d[k]!=null&&!(p.fuente==="Cliente"&&k==="fecha")),k=>k==="_decision"?0:1);
   if(!ks.length) return "";
+  // Opinión que dejó el cliente en su link: decisión y comentario en palabras, no nombres de campo
+  const LAB_CLI={_decision:"Decisión del cliente",motivoDetalle:"Comentario del cliente",etapa:"Etapa al aprobar",motivo:"Motivo de descarte"};
   return `<div class="tablewrap" style="margin-top:8px"><table><tbody>${ks.map(k=>{
+    if(k==="_decision") return `<tr><td class="muted" style="width:34%">${LAB_CLI._decision}</td><td><span class="pill ${d[k]==="no"?"crit":"ok"}">${d[k]==="no"?"No avanzar":"Me interesa"}</span></td></tr>`;
     const v=d[k]; const cur=p.registroId&&p.op==="actualizar"? (S[RES_KEY[p.coleccion]]||{})[p.registroId]?.[k] : undefined;
     const show=x=> typeof x==="boolean"?(x?"Sí":"No"): typeof x==="object"?JSON.stringify(x): String(x);
     const fmtV = k==="url" ? `<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(show(v));
-    return `<tr><td class="muted" style="width:34%">${esc(humanKey(k))}</td><td>${cur!==undefined&&cur!==null&&cur!==""?`<span class="muted" style="text-decoration:line-through">${esc(show(cur))}</span> → `:""}<b>${fmtV}</b></td></tr>`;
+    return `<tr><td class="muted" style="width:34%">${esc(p.fuente==="Cliente"&&LAB_CLI[k]?LAB_CLI[k]:humanKey(k))}</td><td>${cur!==undefined&&cur!==null&&cur!==""?`<span class="muted" style="text-decoration:line-through">${esc(show(cur))}</span> → `:""}<b>${fmtV}</b></td></tr>`;
   }).join("")}</tbody></table></div>`;
 }
 function propBanner(){
@@ -1499,9 +1517,18 @@ async function propAprobar(id,datos){
 
 
 // ================= CONEXIONES (WhatsApp y LinkedIn vía Unipile) =================
+// Avisos por mail (opinión del cliente): estado de la configuración y mail de prueba
+function mailBox(){
+  if(S.mailEstado===undefined){ S.mailEstado=null; api("/api/mail/estado").then(r=>{ S.mailEstado=r; schedule(); }).catch(()=>{ S.mailEstado={configurado:false}; schedule(); }); }
+  const m=S.mailEstado;
+  return `<section class="panel"><div class="panel-head"><h2>Avisos por mail</h2>${m&&m.configurado?`<button class="btn sm" data-act="mailPrueba">Mandarme un mail de prueba</button>`:""}</div>
+  ${!m?'<div class="muted">Revisando…</div>':m.configurado?`<p>Cuando un cliente opina en su link, se avisa por mail a la recruiter de la búsqueda y a los admins, desde <b>${esc(m.remitente)}</b>.</p>`
+   :`<p>Todavía no están activos. Para activarlos: 1) en Google Admin, sumá el permiso <code>https://www.googleapis.com/auth/gmail.send</code> a la delegación de la cuenta de servicio; 2) en Replit Secrets, cargá <b>MAIL_REMITENTE</b> con la casilla desde la que salen (por ejemplo, avisos@lemontalent.com).</p>`}</section>`;
+}
 function vConexiones(){
   const d=S.conexiones;
   let h=`<div class="head"><div><h1>Conexiones</h1><p>Conectá tu WhatsApp y tu LinkedIn para que el sistema lea las novedades cada 2 horas y las proponga en la Bandeja. Es solo lectura: nunca envía mensajes.</p></div></div>`;
+  if(canFin) h+=mailBox();
   if(!d) return h+`<div class="empty">Cargando conexiones…</div>`;
   if(!d.configurado) return h+`<div class="empty">Falta configurar la cuenta de Unipile: un admin tiene que cargar UNIPILE_DSN y UNIPILE_API_KEY en Secrets.</div>`;
   h+=`<div class="toolbar"><button class="btn lemon" data-act="uniLink" data-v="WHATSAPP">Conectar mi WhatsApp</button><button class="btn" data-act="uniLink" data-v="LINKEDIN">Conectar mi LinkedIn</button></div>`;
@@ -1829,7 +1856,7 @@ function papeleraBox(){
   if(!isAdmin) return "";
   const P=S.papelera;
   return `<section class="panel"><div class="panel-head"><h2>Papelera y respaldo</h2><span style="display:flex;gap:6px"><button class="btn sm ghost" data-act="backupDrive">Subir a Drive ahora</button><a class="btn sm" href="/api/backup" download>Descargar backup completo</a></span></div>
-  <div class="note">Lo que se elimina queda 30 días en la papelera y se puede restaurar. El backup descarga toda la base en un archivo (sin el contenido de los CV); además se sube una copia diaria a Google Drive y se guardan los últimos 30 días.</div>
+  <div class="note">Lo que se elimina queda 30 días en la papelera y se puede restaurar. El backup descarga toda la base en un archivo (sin el contenido de los CV). Además, cada día se sube una copia a Google Drive (se guardan los últimos 30 días) y los CVs y contratos nuevos se copian a la subcarpeta “Archivos adjuntos”.</div>
   ${backupDriveLinea()}
   ${!P?`<div class="muted">Cargando papelera…</div>`:!P.length?`<div class="muted" style="font-size:13px">La papelera está vacía.</div>`:`<div class="list">${P.map(x=>`<div class="row"><div class="grow"><div><b>${esc(x.datos?.puesto||x.datos?.nombre||x.datos?.empresa||x.datos?.concepto||x.datos?.texto?.slice(0,60)||x.registroId)}</b> <span class="muted">· ${esc(HIST_LAB[x.coleccion]||x.coleccion)}</span></div><div class="muted" style="font-size:12px">Eliminado por ${esc(authorName(x.usuarioId))} el ${new Date(x.fecha).toLocaleDateString("es-AR")}</div></div><button class="btn sm" data-act="restaurar" data-id="${esc(x.id)}">Restaurar</button></div>`).join("")}</div>`}</section>`;
 }
@@ -1838,7 +1865,7 @@ function backupDriveLinea(){ const b=S.backupDrive; if(b===undefined) return "";
   if(!b) return `<div class="muted" style="font-size:13px;margin-bottom:8px">Copia en Drive: todavía no se subió ninguna.</div>`;
   const f=new Date(b.fecha).toLocaleString("es-AR",{timeZone:"America/Argentina/Buenos_Aires",dateStyle:"short",timeStyle:"short"});
   const viejo=Date.now()-new Date(b.fecha)>36*3600e3;
-  return b.ok?`<div class="muted" style="font-size:13px;margin-bottom:8px;${viejo?"color:var(--danger,#c0392b)":""}">Última copia en Drive: ${esc(f)} · ${esc(b.archivo)} (${Math.max(1,Math.round(b.tamano/1024))} KB)${viejo?" · hace más de un día, revisar":""}</div>`
+  return b.ok?`<div class="muted" style="font-size:13px;margin-bottom:8px;${viejo?"color:var(--danger,#c0392b)":""}">Última copia en Drive: ${esc(f)} · ${esc(b.archivo)} (${Math.max(1,Math.round(b.tamano/1024))} KB)${b.archivos?(b.archivos.error?` · archivos adjuntos sin copiar: ${esc(b.archivos.error)}`:` · archivos adjuntos: ${b.archivos.subidos} nuevos copiados${b.archivos.pendientes?`, ${b.archivos.pendientes} pendientes`:""}`):""}${viejo?" · hace más de un día, revisar":""}</div>`
     :`<div style="font-size:13px;margin-bottom:8px;color:var(--danger,#c0392b)">La última copia en Drive falló (${esc(f)}): ${esc(b.error)}</div>`; }
 async function cargarBackupDrive(){ try{ S.backupDrive=await api("/api/backup/drive"); schedule(); }catch(e){} }
 
@@ -2047,6 +2074,9 @@ function calidadDatos(){
   const c1=BB.filter(b=>b.estado==="Cerrada"&&!b.candidatoFinal); if(c1.length) add(`${c1.length} búsquedas cerradas sin candidato final`,"Cargá quién ingresó: se usa en garantías y en el historial del cliente.",c1.map(ib));
   const c2=BB.filter(b=>["Cerrada","Cancelada"].includes(b.estado)&&!b.fechaCierre); if(c2.length) add(`${c2.length} búsquedas cerradas o canceladas sin fecha de cierre`,"Sin fecha de cierre no entran en el tiempo de cierre ni en los números del período.",c2.map(ib));
   const c3=BB.filter(b=>!b.recruiter); if(c3.length) add(`${c3.length} búsquedas sin recruiter`,"Asigná la recruiter para que cuente en la capacidad y en las comisiones.",c3.map(ib));
+  const enEquipo=new Set(recruiters().map(r=>keyN(r.nombre)));
+  const f4=F.filter(f=>!f.historico&&f.recruiter&&f.comision&&!enEquipo.has(keyN(f.recruiter))); if(f4.length) add(`${f4.length} facturas con comisión de una recruiter que no está en Equipo`,"Esa comisión no aparece en ningún panel. Corregí la recruiter en la factura.",f4.map(iff));
+  const sinU=recruiters().filter(r=>r.activa!==false&&!r.usuarioId); if(sinU.length) add(`${sinU.length} recruiters sin usuario ligado`,"Ligá cada recruiter a su usuario en Equipo › Editar equipo para que vea su panel y sus comisiones.",sinU.map(r=>({l:r.nombre,s:"Sin usuario",act:"editEquipo",id:""})),"info");
   const nom=recruiters().map(r=>r.nombre); const c4=uniq(BB.filter(b=>b.recruiter&&!nom.includes(b.recruiter)).map(b=>b.recruiter)); if(c4.length) add("Recruiters en búsquedas que no están en el equipo",c4.join(", ")+". Agregalas en Equipo › Editar equipo o renombralas.",[]);
   const d5=F.filter(f=>f.comisionPagada&&f.comision>0&&!f.fechaPagoComision&&!f.historico); if(d5.length) add(`${d5.length} comisiones pagadas sin fecha de pago`,"Son de antes de que existiera el campo. Desde ahora se registra sola al marcar “Comisión pagada”.",d5.map(iff),"info");
   const h=hist(); const dif=Object.keys(h).filter(k=>k>=CORTE_FACTURAS).map(k=>{ const fs=F.filter(f=>!f.historico&&ym(f.fechaEmision)===k); const a=fs.filter(f=>f.moneda!=="USD").reduce((s,f)=>s+(f.monto||0),0), u=fs.filter(f=>f.moneda==="USD").reduce((s,f)=>s+(f.monto||0),0); return {k,da:a-(h[k].ingresosARS||0),du:u-(h[k].ingresosUSD||0)}; }).filter(x=>Math.abs(x.da)>1||Math.abs(x.du)>1);

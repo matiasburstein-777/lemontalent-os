@@ -1,10 +1,13 @@
 // Seguimiento de búsquedas: historial de etapas de cada postulación y link privado de solo lectura para el cliente.
 import crypto from "node:crypto";
 import express from "express";
+import { enviarMail, plantilla, destinatariosBusqueda, APP_URL, escHtml } from "./mail.js";
 
 export const ETAPAS = ["Sourcing", "Contactado", "Entrevista LT", "Presentado", "Entrevista cliente", "Oferta", "Contratado", "Descartado"];
 const FUNNEL = ETAPAS.slice(0, 7);
 export const hoyBA = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
+
+let poolRef = null; // lo usa el aviso de opinión, fuera del registro de rutas
 
 const SQL = `
 ALTER TABLE postulaciones ADD COLUMN IF NOT EXISTS etapas jsonb DEFAULT '[]'::jsonb;
@@ -81,6 +84,7 @@ async function linkActivo(pool, alcance, b) {
 }
 
 export function registerSeguimiento(app, { pool, auth, newId }) {
+  poolRef = pool;
   // ---------- administración del link (cualquier usuario con acceso a búsquedas) ----------
   const busq = async (id) => (await pool.query("SELECT id, cliente FROM busquedas WHERE id = $1", [id])).rows[0];
   app.get("/api/links/:bid", auth(), async (req, res, next) => {
@@ -192,8 +196,30 @@ export function registerSeguimiento(app, { pool, auth, newId }) {
           `${b.cliente || "El cliente"} ${decision === "interesa" ? "quiere avanzar con" : "no quiere avanzar con"} ${p.nombre || "el candidato"} (${b.puesto || "búsqueda"})`,
           comentario || null, `/c/${d.l.token}`, p.id, JSON.stringify(datos)]);
       res.redirect(303, `/c/${encodeURIComponent(d.l.token)}?ok=1#c-${encodeURIComponent(p.id)}`);
+      // Aviso por mail a la recruiter de la búsqueda y a los admins (sin frenar la respuesta al cliente)
+      avisarOpinion({ b, p, decision, comentario }).catch((e) => console.error("No se pudo avisar la opinión del cliente:", e.message));
     } catch (e) { next(e); }
   });
+}
+
+async function avisarOpinion({ b, p, decision, comentario }) {
+  const para = await destinatariosBusqueda(poolRef, b.recruiter);
+  const si = decision === "interesa";
+  const r = await enviarMail({
+    para,
+    asunto: `${b.cliente || "Un cliente"} ${si ? "quiere avanzar con" : "no quiere avanzar con"} ${p.nombre || "un candidato"}`,
+    html: plantilla({
+      titulo: `${si ? "Me interesa" : "No avanzar"}: ${p.nombre || "candidato"}`,
+      lineas: [
+        `<b>${escHtml(b.cliente || "El cliente")}</b> dejó su opinión en el link de seguimiento sobre <b>${escHtml(p.nombre || "un candidato")}</b> para <b>${escHtml(b.puesto || "la búsqueda")}</b>.`,
+        comentario ? `Comentario: “${escHtml(comentario)}”` : "No dejó comentario.",
+        "La etapa no cambia hasta que un admin la apruebe en la Bandeja de propuestas.",
+      ],
+      boton: "Revisar en la Bandeja",
+      link: `${APP_URL()}/#propuestas`,
+    }),
+  });
+  if (!r.ok) console.warn("Aviso de opinión sin enviar:", r.motivo);
 }
 
 function pagina(titulo, body) {

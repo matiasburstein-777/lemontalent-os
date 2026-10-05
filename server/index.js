@@ -17,20 +17,28 @@ import { registerContratos } from "./contratos.js";
 import { registerSeguimiento, migrarSeguimiento, conEtapas } from "./seguimiento.js";
 import { registerGastos, migrarGastos } from "./gastos.js";
 import { registerRecruiters } from "./recruiters.js";
+import { normalizarVinculos, migrarIntegridad } from "./integridad.js";
+import { registerMail } from "./mail.js";
+import { registerSeguridad, migrarSeguridad, headersSeguridad, bloqueado, anotarFallo, limpiarFallos, registrarAcceso, cerrarSesiones } from "./seguridad.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.set("trust proxy", 1);
+app.use(headersSeguridad);
 app.use(express.json({ limit: "12mb" }));
 
 // ---------- sesión ----------
+const SECRETO_TEMPORAL = crypto.randomBytes(32).toString("hex");
+if (!process.env.SESSION_SECRET) console.warn("Falta SESSION_SECRET en Secrets: se usa uno temporal y las sesiones se pierden al reiniciar.");
 const PgStore = connectPg(session);
 app.use(session({
   store: new PgStore({ pool, createTableIfMissing: true }),
-  secret: process.env.SESSION_SECRET || "cambiar-este-secreto",
+  // Sin SESSION_SECRET se usa uno al azar (las sesiones se pierden al reiniciar), nunca uno fijo en el código
+  secret: process.env.SESSION_SECRET || SECRETO_TEMPORAL,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: "lax", secure: "auto", maxAge: 1000 * 60 * 60 * 24 * 30 },
+  rolling: true, // la sesión vence a los 7 días sin uso; usarla la renueva
+  cookie: { httpOnly: true, sameSite: "lax", secure: "auto", maxAge: 1000 * 60 * 60 * 24 * 7 },
 }));
 
 const newId = (p) => p + Date.now().toString(36) + crypto.randomBytes(3).toString("hex");
@@ -56,11 +64,24 @@ const auth = (rol) => async (req, res, next) => {
 // ---------- login ----------
 app.post("/api/login", async (req, res) => {
   const email = String(req.body.email || "").trim().toLowerCase();
+  const min = bloqueado(req, email);
+  if (min) {
+    await registrarAcceso(pool, req, { email, ok: false, motivo: "bloqueado" });
+    return res.status(429).json({ error: `Demasiados intentos fallidos. Probá de nuevo en ${min} minuto${min > 1 ? "s" : ""}.` });
+  }
   const [u] = await db.select().from(S.users).where(eq(S.users.email, email));
-  if (!u || !u.activo || !(await bcrypt.compare(String(req.body.password || ""), u.passwordHash)))
+  if (!u || !u.activo || !(await bcrypt.compare(String(req.body.password || ""), u.passwordHash))) {
+    anotarFallo(req, email);
+    await registrarAcceso(pool, req, { usuarioId: u?.id, email, ok: false, motivo: !u ? "email desconocido" : !u.activo ? "usuario inactivo" : "contraseña incorrecta" });
     return res.status(401).json({ error: "Email o contraseña incorrectos." });
-  req.session.userId = u.id;
-  res.json(publicUser(u));
+  }
+  limpiarFallos(req, email);
+  req.session.regenerate(async (err) => {
+    if (err) return res.status(500).json({ error: "No se pudo iniciar la sesión. Probá de nuevo." });
+    req.session.userId = u.id;
+    await registrarAcceso(pool, req, { usuarioId: u.id, email, ok: true });
+    res.json(publicUser(u));
+  });
 });
 app.post("/api/logout", (req, res) => req.session.destroy(() => res.json({ ok: true })));
 app.get("/api/me", auth(), (req, res) => res.json(publicUser(req.user)));
@@ -69,6 +90,7 @@ app.post("/api/me/password", auth(), async (req, res) => {
   if (!nueva || String(nueva).length < 8) return res.status(400).json({ error: "La contraseña nueva necesita al menos 8 caracteres." });
   if (!(await bcrypt.compare(String(actual || ""), req.user.passwordHash))) return res.status(400).json({ error: "La contraseña actual no coincide." });
   await db.update(S.users).set({ passwordHash: await bcrypt.hash(String(nueva), 10) }).where(eq(S.users.id, req.user.id));
+  await cerrarSesiones(pool, req.user.id, req.sessionID); // cambiar la contraseña cierra los demás dispositivos
   res.json({ ok: true });
 });
 
@@ -105,6 +127,8 @@ app.patch("/api/users/:id", auth("admin"), async (req, res) => {
   }
   if (req.params.id === req.user.id && (set.activo === false || (set.rol && set.rol !== "admin"))) return res.status(400).json({ error: "No podés quitarte el acceso de admin a vos mismo." });
   await db.update(S.users).set(set).where(eq(S.users.id, req.params.id));
+  // Desactivar a alguien o resetearle la contraseña lo saca de todos sus dispositivos
+  if (set.activo === false || set.passwordHash) await cerrarSesiones(pool, req.params.id, req.params.id === req.user.id ? req.sessionID : null);
   res.json({ ok: true });
 });
 
@@ -155,6 +179,8 @@ registerContratos(app, { pool, auth });
 registerSeguimiento(app, { pool, auth, newId });
 registerGastos(app, { pool, auth });
 registerRecruiters(app, { pool, auth, rank, RANK });
+registerSeguridad(app, { pool, auth });
+registerMail(app, { auth });
 
 // Costos unitarios por año, solo ratios (nunca totales): para admins.
 app.get("/api/unit-costs", auth("admin"), async (req, res, next) => {
@@ -203,6 +229,7 @@ app.put("/api/:res/:id", auth(), async (req, res, next) => {
     const cols = getTableColumns(r.t);
     const vals = clean(r.t, req.body || {}); delete vals[r.pk];
     if (req.params.res === "feedback" && !vals.autorId) vals.autorId = req.user.id;
+    await normalizarVinculos(pool, req.params.res, vals);
     const antes = await HX.leer(r, req.params.id);
     if (req.params.res === "postulaciones") conEtapas(vals, antes, req.user);
     const row = { ...vals, [r.pk]: req.params.id };
@@ -219,6 +246,7 @@ app.patch("/api/:res/:id", auth(), async (req, res, next) => {
     const vals = clean(r.t, req.body || {}); delete vals[r.pk];
     if (req.params.res === "postulaciones") delete vals.etapas;
     if (!Object.keys(vals).length) return res.json({ ok: true });
+    await normalizarVinculos(pool, req.params.res, vals);
     const antes = await HX.leer(r, req.params.id);
     if (req.params.res === "postulaciones" && antes) conEtapas(vals, antes, req.user);
     const out = await db.update(r.t).set(vals).where(eq(cols[r.pk], req.params.id)).returning();
@@ -262,7 +290,9 @@ async function bootstrapAdmin() {
 }
 
 const PORT = process.env.PORT || 5000;
-migrarSeguimiento(pool).catch((e) => console.error("No se pudo preparar el seguimiento de etapas:", e.message))
+migrarSeguridad(pool).catch((e) => console.error("No se pudo preparar el registro de accesos:", e.message))
+  .then(() => migrarSeguimiento(pool)).catch((e) => console.error("No se pudo preparar el seguimiento de etapas:", e.message))
+  .then(() => migrarIntegridad(pool)).catch((e) => console.error("No se pudo ligar el equipo a los usuarios:", e.message))
   .then(() => migrarGastos(pool)).catch((e) => console.error("No se pudieron preparar los gastos:", e.message))
   .then(bootstrapAdmin).catch((e) => console.error("No se pudo crear el usuario inicial:", e.message))
   .finally(() => app.listen(PORT, "0.0.0.0", () => console.log(`Lemon Talent OS en puerto ${PORT}`)));

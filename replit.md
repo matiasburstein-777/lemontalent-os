@@ -99,9 +99,35 @@ Los pedidos están en la pantalla "Pedidos de mejora" (tabla `feedback`). Al ter
 
 ## Backup diario en Google Drive
 
-- `server/backup.js` arma el backup (todas las tablas, sin `session`, sin hash de contraseñas ni contenido de los CV), lo sube comprimido (`lemon-talent-backup-AAAA-MM-DD.json.gz`) y borra los de más de 30 días. El resultado queda en config `backupDrive` y se ve en Ajustes → Papelera y respaldo.
-- Lo corre un **Scheduled Deployment** de Replit: `node scripts/backup-drive.js`, todos los días a las 3:00 (Buenos Aires). También: botón "Subir a Drive ahora" (socios) y `POST /api/ingest/backup-drive` (con `INGEST_TOKEN`).
+- `server/backup.js` arma el backup (todas las tablas, sin `session`, sin hash de contraseñas ni contenido de los CV), lo sube comprimido (`lemon-talent-backup-AAAA-MM-DD.json.gz`) y borra los de más de 30 días. Además copia los archivos adjuntos (CV, contratos) que todavía no estén en Drive a la subcarpeta "Archivos adjuntos" (hasta 200 por corrida; `archivos.drive_id` marca los ya copiados). El resultado queda en config `backupDrive` y se ve en Ajustes → Papelera y respaldo.
+- Lo corre un **Scheduled Deployment** de Replit: `node scripts/backup-drive.js`, todos los días a las 3:00 (Buenos Aires). También: botón "Subir a Drive ahora" (admins) y `POST /api/ingest/backup-drive` (con `INGEST_TOKEN`).
 - Secretos: `GOOGLE_SA_JSON`, `BACKUP_DRIVE_FOLDER_ID` (ID de la carpeta) y `BACKUP_DRIVE_USER` (usuario @lemontalent.com dueño de la carpeta; la cuenta de servicio lo impersona con el scope `https://www.googleapis.com/auth/drive`). Si la carpeta está en una unidad compartida donde la cuenta de servicio es miembro, `BACKUP_DRIVE_USER` no hace falta.
+
+## Seguridad del acceso (`server/seguridad.js`)
+
+- Login: 5 intentos fallidos con el mismo email desde la misma IP en 15 minutos bloquean ese par 15 minutos (respuesta 429). Al entrar, la sesión se regenera.
+- Cada intento (exitoso o no) queda en la tabla `accesos` (180 días). Los admins ven los últimos en Configuración › Usuarios y accesos.
+- Sesiones de 7 días que se renuevan con el uso (`rolling`). Cambiar la contraseña cierra las demás sesiones; desactivar a alguien o resetearle la contraseña lo saca de todas. "Mi contraseña" tiene "Cerrar sesión en los demás dispositivos".
+- Sin `SESSION_SECRET` el servidor usa uno al azar por arranque (avisa en el log); nunca uno fijo.
+- Headers: `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: same-origin` (el token del link del cliente no sale a terceros).
+
+## Integridad de vínculos (`server/integridad.js`)
+
+- Recruiter y cliente siguen guardados por nombre, pero al escribir búsquedas y facturas el servidor los reemplaza por el nombre exacto existente (Equipo / Clientes), así "maga" o "andes foods" no parten métricas ni comisiones.
+- Cada recruiter de `config.equipo` tiene `usuarioId` (se liga sola al arrancar si el nombre coincide sin dudas, y se edita en Equipo › Editar equipo). "Mi panel" y los avisos usan ese vínculo antes que el nombre.
+- Renombrar un cliente o una recruiter propaga el cambio (`server/consistencia.js`), incluidos los links de cliente.
+- Calidad de datos marca facturas con comisión de alguien que no está en Equipo y recruiters sin usuario ligado.
+
+## Avisos por mail (`server/mail.js`)
+
+- Cuando un cliente opina en su link, se manda un mail a la recruiter de la búsqueda (vía `usuarioId`) y a los admins, sin frenar la respuesta al cliente.
+- Usa la cuenta de servicio de Google (`GOOGLE_SA_JSON`) impersonando `MAIL_REMITENTE`. Requiere sumar el scope `https://www.googleapis.com/auth/gmail.send` a la delegación de dominio en Google Admin. Sin eso, no se envía y queda un aviso en el log.
+- Configuración › Conexiones muestra el estado y permite "Mandarme un mail de prueba".
+
+## Tests
+
+- `npm test` corre `test/api.test.js` contra `TEST_DATABASE_URL` (una base de prueba que se vacía; si no es local, no corre salvo en CI). Cubre permisos por rol, link del cliente, opinión, login con bloqueo, sesiones y normalización de vínculos.
+- GitHub Actions (`.github/workflows/ci.yml`) levanta Postgres, crea las tablas con `drizzle-kit push` en esa base de prueba y corre los tests en cada push. **En producción sigue sin usarse `db:push`.**
 
 ## Próximos pasos previstos
 
