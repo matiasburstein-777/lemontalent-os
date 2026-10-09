@@ -252,6 +252,11 @@ export function registerMcp(app, { pool, R, RANK, rank, ops, ErrorApi, newId, pu
     return u;
   }
 
+  // Log de cada pedido al MCP (sin el token) para diagnosticar conexiones desde los logs de Replit
+  app.use(["/mcp", "/.well-known", "/register", "/authorize", "/token"], (req, res, next) => {
+    res.on("finish", () => console.log(`mcp ${req.method} ${req.originalUrl.replace(/lt_[\w-]+/, "lt_***")} -> ${res.statusCode} (${String(req.headers["user-agent"] || "").slice(0, 60)})`));
+    next();
+  });
   const endpoint = async (req, res, next) => {
     try {
       const tok = req.params.token || String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
@@ -268,7 +273,8 @@ export function registerMcp(app, { pool, R, RANK, rank, ops, ErrorApi, newId, pu
   // Sin stream de eventos del servidor ni sesiones: GET y DELETE no aplican.
   app.all(["/mcp", "/mcp/:token"], (req, res) => res.set("Allow", "POST").status(405).json({ error: "Usá POST." }));
   // Que Claude no busque OAuth (si no, recibe el index.html del front)
-  app.get(/^\/\.well-known\/(oauth-|openid-)/, (req, res) => res.status(404).json({ error: "No hay OAuth: la URL ya trae el token." }));
+  app.all(/^\/\.well-known\/(oauth-|openid-)/, (req, res) => res.status(404).json({ error: "No hay OAuth: la URL ya trae el token." }));
+  app.all(["/register", "/authorize", "/token"], (req, res) => res.status(404).json({ error: "No hay OAuth: la URL ya trae el token." }));
 
   // ---------- tokens (Configuración › Conexiones) ----------
   app.get("/api/mcp/tokens", auth(), async (req, res, next) => {
@@ -286,7 +292,7 @@ export function registerMcp(app, { pool, R, RANK, rank, ops, ErrorApi, newId, pu
       const id = newId("tk");
       const nombre = String(req.body?.nombre || "Claude").slice(0, 60);
       await pool.query("INSERT INTO tokens_mcp (id, usuario_id, nombre, hash) VALUES ($1,$2,$3,$4)", [id, req.user.id, nombre, hashDe(tok)]);
-      res.json({ id, nombre, url: `${req.protocol}://${req.get("host")}/mcp/${tok}` });
+      res.json({ id, nombre, url: `${/^(localhost|127\.)/.test(req.get("host")) ? req.protocol : "https"}://${req.get("host")}/mcp/${tok}` });
     } catch (e) { next(e); }
   });
   app.delete("/api/mcp/tokens/:id", auth(), async (req, res, next) => {
