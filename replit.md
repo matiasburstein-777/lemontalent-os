@@ -58,6 +58,11 @@ Dos roles (constante `RANK` en `server/index.js`): `recruiter` < `admin`. En oct
 - **Opinión del cliente**: en cada candidato el cliente elige "Me interesa" o "No avanzar" (con comentario). `POST /c/:token/opinion` crea una propuesta (fuente "Cliente") que actualiza la postulación al aprobarla (Entrevista cliente o Descartado "Rechazado por el cliente"); nada cambia hasta que alguien la aprueba en la Bandeja.
 - Las columnas y tablas nuevas se crean solas al arrancar (`migrarSeguimiento`), sin `db:push`.
 
+## Claude (MCP, `server/mcp.js`)
+
+- Cada usuario genera su URL en Configuración › Conexiones › Claude (`POST /api/mcp/tokens`; se guarda solo el hash en `tokens_mcp`, se puede revocar). En Claude Desktop / claude.ai: Conectores → Agregar conector personalizado → pegar `https://lemontalent-os.replit.app/mcp/<token>`.
+- Endpoint MCP sin estado por POST (`/mcp/:token` o `/mcp` con `Authorization: Bearer`). Las herramientas (`describir_datos`, `listar`, `obtener`, `ficha_busqueda`, `crear`, `actualizar`, `sumar_a_bitacora`, `ver_config`) usan las mismas `ops` que la API genérica de `server/index.js`: mismos permisos por rol, historial a nombre del usuario y vínculos normalizados. No hay herramienta de borrar.
+
 ## Menú
 
 - **Día a día:** **Inicio** (`#panel`, pestañas Hoy · Números · Búsquedas · Comercial: une el ex Panel y el Weekly; recruiters ven Hoy y Búsquedas), Bandeja de propuestas.

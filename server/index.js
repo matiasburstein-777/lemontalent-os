@@ -19,6 +19,7 @@ import { registerGastos, migrarGastos } from "./gastos.js";
 import { registerRecruiters } from "./recruiters.js";
 import { normalizarVinculos, migrarIntegridad } from "./integridad.js";
 import { registerMail } from "./mail.js";
+import { registerMcp, migrarMcp } from "./mcp.js";
 import { registerSeguridad, migrarSeguridad, headersSeguridad, bloqueado, anotarFallo, limpiarFallos, registrarAcceso, cerrarSesiones } from "./seguridad.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -160,11 +161,13 @@ const R = {
   gastos: { t: S.gastos, min: "admin", del: "todos" },
   gastosRecurrentes: { t: S.gastosRecurrentes, min: "admin" },
 };
-function resource(req, res, escritura = false) {
-  const r = R[req.params.res];
-  if (!r) { res.status(404).json({ error: "Recurso desconocido." }); return null; }
+// Errores con código HTTP que pueden venir de la API o del MCP.
+class ErrorApi extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+function recurso(user, nombre, escritura = false) {
+  const r = Object.hasOwn(R, nombre) ? R[nombre] : null;
+  if (!r) throw new ErrorApi(404, "Recurso desconocido.");
   const need = escritura && r.write ? r.write : r.min;
-  if (rank(req.user) < RANK[need]) { res.status(403).json({ error: "No tenés permiso para ver o cambiar esto." }); return null; }
+  if (rank(user) < RANK[need]) throw new ErrorApi(403, "No tenés permiso para ver o cambiar esto.");
   return { ...r, pk: r.pk || "id" };
 }
 const withId = (r, row) => (r.pk === "id" ? row : { ...row, id: row[r.pk] });
@@ -214,58 +217,74 @@ app.get("/api/unit-costs", auth("admin"), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.get("/api/:res", auth(), async (req, res, next) => {
-  try {
-    const r = resource(req, res); if (!r) return;
+// Lectura y escritura genéricas: las usan la API REST y el MCP (server/mcp.js), con los mismos permisos e historial.
+const ops = {
+  async listar(user, nombre) {
+    const r = recurso(user, nombre);
     let rows = (await db.select().from(r.t)).map((x) => withId(r, x));
-    if (req.params.res === "meses" && req.user.rol !== "admin")
+    if (nombre === "meses" && user.rol !== "admin")
       rows = rows.map(({ mes, tc, ingresosARS, ingresosUSD, historico }) => ({ mes, tc, ingresosARS, ingresosUSD, historico }));
-    res.json(rows);
-  } catch (e) { next(e); }
-});
-app.put("/api/:res/:id", auth(), async (req, res, next) => {
-  try {
-    const r = resource(req, res, true); if (!r) return;
+    return rows;
+  },
+  async leer(user, nombre, id) {
+    const r = recurso(user, nombre);
+    const row = await HX.leer(r, id);
+    return row ? withId(r, row) : null;
+  },
+  // Crea o reemplaza (PUT)
+  async guardar(user, nombre, id, body) {
+    const r = recurso(user, nombre, true);
     const cols = getTableColumns(r.t);
-    const vals = clean(r.t, req.body || {}); delete vals[r.pk];
-    if (req.params.res === "feedback" && !vals.autorId) vals.autorId = req.user.id;
-    await normalizarVinculos(pool, req.params.res, vals);
-    const antes = await HX.leer(r, req.params.id);
-    if (req.params.res === "postulaciones") conEtapas(vals, antes, req.user);
-    const row = { ...vals, [r.pk]: req.params.id };
+    const vals = clean(r.t, body || {}); delete vals[r.pk];
+    if (nombre === "feedback" && !vals.autorId) vals.autorId = user.id;
+    await normalizarVinculos(pool, nombre, vals);
+    const antes = await HX.leer(r, id);
+    if (nombre === "postulaciones") conEtapas(vals, antes, user);
+    const row = { ...vals, [r.pk]: id };
     const q = db.insert(r.t).values(row);
     await (Object.keys(vals).length ? q.onConflictDoUpdate({ target: cols[r.pk], set: vals }) : q.onConflictDoNothing());
-    await HX.registrar(req.user, req.params.res, req.params.id, antes ? "editar" : "crear", antes, antes ? vals : {});
-    res.json({ ok: true, id: req.params.id });
-  } catch (e) { next(e); }
-});
-app.patch("/api/:res/:id", auth(), async (req, res, next) => {
-  try {
-    const r = resource(req, res, true); if (!r) return;
+    await HX.registrar(user, nombre, id, antes ? "editar" : "crear", antes, antes ? vals : {});
+    return { creado: !antes };
+  },
+  // Cambia solo los campos enviados (PATCH)
+  async actualizar(user, nombre, id, body) {
+    const r = recurso(user, nombre, true);
     const cols = getTableColumns(r.t);
-    const vals = clean(r.t, req.body || {}); delete vals[r.pk];
-    if (req.params.res === "postulaciones") delete vals.etapas;
-    if (!Object.keys(vals).length) return res.json({ ok: true });
-    await normalizarVinculos(pool, req.params.res, vals);
-    const antes = await HX.leer(r, req.params.id);
-    if (req.params.res === "postulaciones" && antes) conEtapas(vals, antes, req.user);
-    const out = await db.update(r.t).set(vals).where(eq(cols[r.pk], req.params.id)).returning();
-    if (out.length) await HX.registrar(req.user, req.params.res, req.params.id, "editar", antes, vals);
-    if (!out.length) return res.status(404).json({ error: "No existe ese registro." });
-    res.json({ ok: true });
-  } catch (e) { next(e); }
-});
-app.delete("/api/:res/:id", auth(), async (req, res, next) => {
-  try {
-    const r = resource(req, res, true); if (!r) return;
-    if ((r.del || "admin") === "admin" && req.user.rol !== "admin") return res.status(403).json({ error: "Solo un admin puede eliminar." });
+    const vals = clean(r.t, body || {}); delete vals[r.pk];
+    if (nombre === "postulaciones") delete vals.etapas;
+    if (!Object.keys(vals).length) return;
+    await normalizarVinculos(pool, nombre, vals);
+    const antes = await HX.leer(r, id);
+    if (nombre === "postulaciones" && antes) conEtapas(vals, antes, user);
+    const out = await db.update(r.t).set(vals).where(eq(cols[r.pk], id)).returning();
+    if (!out.length) throw new ErrorApi(404, "No existe ese registro.");
+    await HX.registrar(user, nombre, id, "editar", antes, vals);
+  },
+  async borrar(user, nombre, id) {
+    const r = recurso(user, nombre, true);
+    if ((r.del || "admin") === "admin" && user.rol !== "admin") throw new ErrorApi(403, "Solo un admin puede eliminar.");
     const cols = getTableColumns(r.t);
-    const antes = await HX.leer(r, req.params.id);
-    await HX.aPapelera(req.user, req.params.res, req.params.id, antes);
-    await db.delete(r.t).where(eq(cols[r.pk], req.params.id));
-    if (antes) await HX.registrar(req.user, req.params.res, req.params.id, "borrar", antes, null);
-    res.json({ ok: true });
-  } catch (e) { next(e); }
+    const antes = await HX.leer(r, id);
+    await HX.aPapelera(user, nombre, id, antes);
+    await db.delete(r.t).where(eq(cols[r.pk], id));
+    if (antes) await HX.registrar(user, nombre, id, "borrar", antes, null);
+  },
+};
+const fallo = (res, next) => (e) => (e instanceof ErrorApi ? res.status(e.status).json({ error: e.message }) : next(e));
+
+registerMcp(app, { pool, R, RANK, rank, ops, ErrorApi, newId, publicUser, auth });
+
+app.get("/api/:res", auth(), (req, res, next) => {
+  ops.listar(req.user, req.params.res).then((rows) => res.json(rows), fallo(res, next));
+});
+app.put("/api/:res/:id", auth(), (req, res, next) => {
+  ops.guardar(req.user, req.params.res, req.params.id, req.body).then(() => res.json({ ok: true, id: req.params.id }), fallo(res, next));
+});
+app.patch("/api/:res/:id", auth(), (req, res, next) => {
+  ops.actualizar(req.user, req.params.res, req.params.id, req.body).then(() => res.json({ ok: true }), fallo(res, next));
+});
+app.delete("/api/:res/:id", auth(), (req, res, next) => {
+  ops.borrar(req.user, req.params.res, req.params.id).then(() => res.json({ ok: true }), fallo(res, next));
 });
 
 // ---------- front ----------
@@ -293,6 +312,7 @@ const PORT = process.env.PORT || 5000;
 migrarSeguridad(pool).catch((e) => console.error("No se pudo preparar el registro de accesos:", e.message))
   .then(() => migrarSeguimiento(pool)).catch((e) => console.error("No se pudo preparar el seguimiento de etapas:", e.message))
   .then(() => migrarIntegridad(pool)).catch((e) => console.error("No se pudo ligar el equipo a los usuarios:", e.message))
+  .then(() => migrarMcp(pool)).catch((e) => console.error("No se pudieron preparar los tokens del MCP:", e.message))
   .then(() => migrarGastos(pool)).catch((e) => console.error("No se pudieron preparar los gastos:", e.message))
   .then(bootstrapAdmin).catch((e) => console.error("No se pudo crear el usuario inicial:", e.message))
   .finally(() => app.listen(PORT, "0.0.0.0", () => console.log(`Lemon Talent OS en puerto ${PORT}`)));

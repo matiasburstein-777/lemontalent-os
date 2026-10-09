@@ -138,3 +138,62 @@ test("desactivar a un usuario lo saca de sus sesiones", async () => {
   assert.equal((await get(rec.cookie, "/api/busquedas")).status, 401);
   await send(adm.cookie, "PATCH", "/api/users/uR", { activo: true });
 });
+
+// ---------- MCP (server/mcp.js) ----------
+async function mcpUrl(email) {
+  const { cookie } = await login(email);
+  const j = await (await send(cookie, "POST", "/api/mcp/tokens", { nombre: "test" })).json();
+  return { cookie, id: j.id, path: new URL(j.url).pathname };
+}
+const rpc = async (path, method, params, id = 1) =>
+  (await fetch(BASE + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id, method, params }) })).json();
+const tool = async (path, name, args) => {
+  const j = await rpc(path, "tools/call", { name, arguments: args });
+  const t = j.result.content[0].text;
+  return { error: !!j.result.isError, data: j.result.isError ? t : JSON.parse(t) };
+};
+
+test("MCP: sin token válido responde 401", async () => {
+  assert.equal((await fetch(BASE + "/mcp/lt_inventado_123456789012345", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 401);
+  assert.equal((await fetch(BASE + "/.well-known/oauth-protected-resource")).status, 404);
+});
+
+test("MCP: initialize y lista de herramientas", async () => {
+  const { path } = await mcpUrl("rec@test.com");
+  const init = await rpc(path, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } });
+  assert.equal(init.result.protocolVersion, "2025-06-18");
+  assert.ok(init.result.capabilities.tools);
+  const r = await fetch(BASE + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) });
+  assert.equal(r.status, 202);
+  const names = (await rpc(path, "tools/list")).result.tools.map((t) => t.name);
+  for (const n of ["describir_datos", "listar", "obtener", "crear", "actualizar", "sumar_a_bitacora"]) assert.ok(names.includes(n), n);
+  assert.ok(!names.includes("borrar"));
+});
+
+test("MCP: un recruiter no ve plata y escribe con su usuario", async () => {
+  const { path } = await mcpUrl("rec@test.com");
+  const d = (await tool(path, "describir_datos", {})).data;
+  assert.ok(d.colecciones.busquedas && !d.colecciones.facturas && !d.colecciones.busquedasFin);
+  assert.ok((await tool(path, "listar", { coleccion: "facturas" })).error);
+  const f = (await tool(path, "ficha_busqueda", { id: "b1" })).data;
+  assert.equal(f.finanzas, undefined);
+  assert.ok(!JSON.stringify(f).includes("4321987"));
+  const l = (await tool(path, "listar", { coleccion: "busquedas", filtros: { recruiter: "maga", estado: "activa" } })).data;
+  assert.ok(l.filas.some((b) => b.id === "b1"));
+  assert.equal((await tool(path, "sumar_a_bitacora", { busquedaId: "b1", texto: "Avance desde Claude" })).error, false);
+  const { rows: [b] } = await pool.query("SELECT bitacora FROM busquedas WHERE id = 'b1'");
+  assert.equal(b.bitacora.at(-1).autor, "uR");
+  const { rows: h } = await pool.query("SELECT usuario_id FROM historial WHERE coleccion = 'busquedas' AND registro_id = 'b1' ORDER BY id DESC LIMIT 1");
+  assert.equal(h[0].usuario_id, "uR");
+  const c = (await tool(path, "crear", { coleccion: "postulaciones", datos: { busquedaId: "b1", candidatoId: "c1", etapa: "Contactado" } })).data;
+  assert.equal(c.registro.etapas.length, 1);
+  assert.equal((await tool(path, "actualizar", { coleccion: "postulaciones", id: c.id, cambios: { etapa: "Descartado", motivo: "Sueldo" } })).data.registro.etapas.length, 2);
+});
+
+test("MCP: un admin ve finanzas; revocar corta el acceso", async () => {
+  const { cookie, id, path } = await mcpUrl("admin@test.com");
+  assert.equal((await tool(path, "ficha_busqueda", { id: "b1" })).data.finanzas.sueldoBrutoARS, 4321987);
+  assert.equal((await tool(path, "listar", { coleccion: "facturas" })).data.total, 1);
+  assert.equal((await send(cookie, "DELETE", "/api/mcp/tokens/" + id)).status, 200);
+  assert.equal((await fetch(BASE + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) })).status, 401);
+});

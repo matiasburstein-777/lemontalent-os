@@ -902,7 +902,7 @@ async function refresh(res){
     if(res==="config"){ S.equipo=await api("/api/config/equipo"); if(!canFin){ try{ S.yoRec=(await api("/api/recruiter/yo")).nombre; }catch(e){} } if(canFin){ S.objetivos=await api("/api/config/objetivos"); S.digest=await api("/api/config/digest"); } }
     else if(res==="users"){ if(canFin) S.users=await api("/api/users"); names=await api("/api/users/names"); }
     else if(res==="unit"){ if(canFin) S.unit=await api("/api/unit-costs"); }
-    else if(res==="conexiones"){ S.conexiones=await api("/api/unipile/cuentas"); }
+    else if(res==="conexiones"){ S.mcpTokens=await api("/api/mcp/tokens").catch(()=>S.mcpTokens||[]); S.conexiones=await api("/api/unipile/cuentas"); }
     else { if(ADMIN_RES.has(res)&&!canFin) return; const rows=await api("/api/"+res); S[RES_KEY[res]]=Object.fromEntries(rows.map(x=>{const id=x.id??x.mes;return [id,{...x,id}];})); }
     $("#sync").textContent="Actualizado "+new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
     schedule();
@@ -1285,6 +1285,9 @@ document.addEventListener("click",async e=>{
     case "propRechazar": try{ await api("/api/propuestas/"+encodeURIComponent(id)+"/rechazar",{method:"POST"}); S.propuestas[id]={...S.propuestas[id],estado:"Rechazada"}; toast("Propuesta rechazada"); schedule(); refresh("propuestas"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo rechazar.",true); } break;
     case "uniLink": { t.disabled=true; try{ const r=await api("/api/unipile/link",{method:"POST",body:JSON.stringify({proveedor:v})}); const w=window.open(r.url,"_blank"); if(!w) location.href=r.url; else toast("Seguí los pasos en la pestaña nueva y volvé acá."); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo generar el link.",true); } t.disabled=false; break; }
     case "uniSave": try{ await api("/api/unipile/cuentas/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({filtro:gv("uni-f-"+t.dataset.i)})}); toast("Guardado"); refresh("conexiones"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo guardar.",true); } break;
+    case "mcpNuevo": try{ const r=await api("/api/mcp/tokens",{method:"POST",body:JSON.stringify({nombre:"Claude de "+(me.nombre||"").split(" ")[0]})}); UI.mcpNuevo=r.url; toast("Conexión generada"); refresh("conexiones"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo generar.",true); } break;
+    case "mcpCopiar": { const i=$("#mcp-url"); if(i){ try{ await navigator.clipboard.writeText(i.value); toast("URL copiada"); }catch(err){ i.select(); toast("Seleccionada: copiala con Ctrl+C",true); } } break; }
+    case "mcpBorrar": if(!t.dataset.armed){ t.dataset.armed="1"; t.textContent="Confirmar: revocar"; break; } try{ await api("/api/mcp/tokens/"+encodeURIComponent(id),{method:"DELETE"}); UI.mcpNuevo=null; toast("Conexión revocada"); refresh("conexiones"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo revocar.",true); } break;
     case "uniDel": if(!t.dataset.armed){ t.dataset.armed="1"; t.textContent="Confirmar: desconectar"; break; } try{ await api("/api/unipile/cuentas/"+encodeURIComponent(id),{method:"DELETE"}); toast("Cuenta desconectada"); refresh("conexiones"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo desconectar.",true); } break;
     case "wkNav": UI.wk = +v===0 ? weekStart() : addDays(UI.wk||weekStart(), +v); if(UI.wk>weekStart()) UI.wk=weekStart(); render(); break;
     case "wkCopy": try{ await navigator.clipboard.writeText(wkTexto()); toast("Resumen copiado: pegalo en WhatsApp o en un mail"); }catch(e){ toast("No se pudo copiar. Probá de nuevo.",true); } break;
@@ -1525,10 +1528,21 @@ function mailBox(){
   ${!m?'<div class="muted">Revisando…</div>':m.configurado?`<p>Cuando un cliente opina en su link, se avisa por mail a la recruiter de la búsqueda y a los admins, desde <b>${esc(m.remitente)}</b>.</p>`
    :`<p>Todavía no están activos. Para activarlos: 1) en Google Admin, sumá el permiso <code>https://www.googleapis.com/auth/gmail.send</code> a la delegación de la cuenta de servicio; 2) en Replit Secrets, cargá <b>MAIL_REMITENTE</b> con la casilla desde la que salen (por ejemplo, avisos@lemontalent.com).</p>`}</section>`;
 }
+// Conexión con Claude (MCP, server/mcp.js): cada usuario genera su URL personal y la pega en Claude como conector.
+function claudeBox(){
+  const ts=S.mcpTokens||[], nuevo=UI.mcpNuevo;
+  return `<section class="panel"><div class="panel-head"><h2>Claude</h2><button class="btn sm lemon" data-act="mcpNuevo">Generar conexión para Claude</button></div>
+  <p>Para consultar y cargar datos desde tu Claude. En Claude: Configuración → Conectores → Agregar conector personalizado, nombre “Lemon Talent OS” y pegá la URL. Claude ve y cambia lo mismo que vos, y los cambios quedan a tu nombre en el historial.</p>
+  ${nuevo?`<div class="note"><b>Copiala ahora: no se vuelve a mostrar.</b> No la compartas: quien la tenga entra con tus permisos.<div class="toolbar"><input id="mcp-url" readonly value="${esc(nuevo)}" style="flex:1"><button class="btn sm" data-act="mcpCopiar">Copiar</button></div></div>`:""}
+  ${ts.length?`<div class="tablewrap"><table><thead><tr><th>Conexión</th><th>Creada</th><th>Último uso</th><th></th></tr></thead><tbody>
+    ${ts.map(t=>`<tr><td>${esc(t.nombre)}</td><td>${esc(t.creado||"—")}</td><td>${esc(t.ultimoUso||"Nunca")}</td><td><button class="btn sm ghost" data-act="mcpBorrar" data-id="${esc(t.id)}">Revocar</button></td></tr>`).join("")}
+  </tbody></table></div>`:`<div class="muted">Todavía no generaste ninguna conexión.</div>`}</section>`;
+}
 function vConexiones(){
   const d=S.conexiones;
   let h=`<div class="head"><div><h1>Conexiones</h1><p>Conectá tu WhatsApp y tu LinkedIn para que el sistema lea las novedades cada 2 horas y las proponga en la Bandeja. Es solo lectura: nunca envía mensajes.</p></div></div>`;
   if(canFin) h+=mailBox();
+  h+=claudeBox();
   if(!d) return h+`<div class="empty">Cargando conexiones…</div>`;
   if(!d.configurado) return h+`<div class="empty">Falta configurar la cuenta de Unipile: un admin tiene que cargar UNIPILE_DSN y UNIPILE_API_KEY en Secrets.</div>`;
   h+=`<div class="toolbar"><button class="btn lemon" data-act="uniLink" data-v="WHATSAPP">Conectar mi WhatsApp</button><button class="btn" data-act="uniLink" data-v="LINKEDIN">Conectar mi LinkedIn</button></div>`;
