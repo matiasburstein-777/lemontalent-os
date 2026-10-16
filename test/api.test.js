@@ -197,3 +197,39 @@ test("MCP: un admin ve finanzas; revocar corta el acceso", async () => {
   assert.equal((await send(cookie, "DELETE", "/api/mcp/tokens/" + id)).status, 200);
   assert.equal((await fetch(BASE + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) })).status, 401);
 });
+
+test("pedidos de Maga: la opinión aprobada queda en la postulación con quién la dio", async () => {
+  await pool.query("DELETE FROM propuestas WHERE fuente = 'Cliente'");
+  const r = await fetch(BASE + "/c/tok-test-123/opinion", { method: "POST", redirect: "manual", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "p=p1&decision=interesa&autor=Laura+RRHH&comentario=Muy+buen+perfil" });
+  assert.equal(r.status, 303);
+  const { rows: [pr] } = await pool.query("SELECT id, datos FROM propuestas WHERE fuente = 'Cliente' AND registro_id = 'p1'");
+  assert.equal(pr.datos._autor, "Laura RRHH");
+  const { cookie } = await login("admin@test.com");
+  assert.equal((await send(cookie, "POST", `/api/propuestas/${pr.id}/aprobar`, {})).status, 200);
+  const { rows: [p] } = await pool.query("SELECT etapa, feedback_cliente FROM postulaciones WHERE id = 'p1'");
+  assert.equal(p.etapa, "Entrevista cliente");
+  assert.match(p.feedback_cliente, /Laura RRHH/);
+  assert.match(p.feedback_cliente, /Muy buen perfil/);
+});
+
+test("pedidos de Maga: etapa Ejercicio técnico, job description, reapertura e informe", async () => {
+  const { cookie } = await login("rec@test.com");
+  assert.equal((await send(cookie, "PATCH", "/api/postulaciones/p1", { etapa: "Ejercicio técnico", fecha: "2026-10-16" })).status, 200);
+  const { rows: [p] } = await pool.query("SELECT etapa, etapas FROM postulaciones WHERE id = 'p1'");
+  assert.equal(p.etapa, "Ejercicio técnico");
+  assert.ok(p.etapas.some((e) => e.etapa === "Ejercicio técnico"));
+  assert.equal((await send(cookie, "PATCH", "/api/busquedas/b1", { jobDescription: "Liderar el equipo comercial", fechaReapertura: "2026-10-01" })).status, 200);
+  assert.equal((await send(cookie, "PATCH", "/api/candidatos/c1", { informe: "Entrevista muy buena" })).status, 200);
+  const { rows: [b] } = await pool.query("SELECT job_description, fecha_reapertura::text AS fr FROM busquedas WHERE id = 'b1'");
+  assert.equal(b.job_description, "Liderar el equipo comercial");
+  assert.equal(b.fr, "2026-10-01");
+  const html = await (await get("", "/c/tok-test-123")).text();
+  assert.ok(html.includes("Ejercicio técnico"));
+});
+
+test("pedidos de Maga: un recruiter no puede adjuntar archivos a facturas", async () => {
+  const { cookie } = await login("rec@test.com");
+  assert.equal((await send(cookie, "POST", "/api/archivos", { coleccion: "facturas", registroId: "f1", nombre: "f.pdf", tipo: "application/pdf", base64: "JVBERi0=" })).status, 403);
+  const adm = await login("admin@test.com");
+  assert.equal((await send(adm.cookie, "POST", "/api/archivos", { coleccion: "facturas", registroId: "f1", nombre: "f.pdf", tipo: "application/pdf", base64: "JVBERi0=" })).status, 200);
+});

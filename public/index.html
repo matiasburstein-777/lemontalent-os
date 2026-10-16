@@ -267,6 +267,9 @@ td.acts{display:table-cell}td.acts > *{margin:2px 4px 2px 0;vertical-align:middl
 @media (prefers-reduced-motion:no-preference){.drawer{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
 
 [hidden]{display:none!important}
+details.jd summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline}details.jd summary::-webkit-details-marker{display:none}
+details.jd .jd-text{white-space:pre-wrap;font-size:14px;line-height:1.55;margin:12px 0;max-height:420px;overflow:auto}
+details.jd[open] summary{margin-bottom:6px}
 .gsearch{position:relative}.gsearch input{width:100%}
 .gres{position:absolute;left:0;right:-180px;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);z-index:40;max-height:60vh;overflow:auto;padding:4px}
 .gitem{display:flex;gap:8px;align-items:baseline;width:100%;text-align:left;background:none;border:0;padding:7px 9px;border-radius:6px;cursor:pointer;color:inherit;font:inherit;font-size:13px}.gitem:hover,.gitem.on{background:var(--hover,rgba(0,0,0,.05))}.gitem .muted{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

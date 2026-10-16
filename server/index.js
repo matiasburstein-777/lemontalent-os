@@ -81,7 +81,8 @@ app.post("/api/login", async (req, res) => {
     if (err) return res.status(500).json({ error: "No se pudo iniciar la sesión. Probá de nuevo." });
     req.session.userId = u.id;
     await registrarAcceso(pool, req, { usuarioId: u.id, email, ok: true });
-    res.json(publicUser(u));
+    // Guardar la sesión antes de responder: así el próximo pedido ya la encuentra
+    req.session.save((e2) => (e2 ? res.status(500).json({ error: "No se pudo iniciar la sesión. Probá de nuevo." }) : res.json(publicUser(u))));
   });
 });
 app.post("/api/logout", (req, res) => req.session.destroy(() => res.json({ ok: true })));

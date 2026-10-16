@@ -3,8 +3,8 @@ import crypto from "node:crypto";
 import express from "express";
 import { enviarMail, plantilla, destinatariosBusqueda, APP_URL, escHtml } from "./mail.js";
 
-export const ETAPAS = ["Sourcing", "Contactado", "Entrevista LT", "Presentado", "Entrevista cliente", "Oferta", "Contratado", "Descartado"];
-const FUNNEL = ETAPAS.slice(0, 7);
+export const ETAPAS = ["Sourcing", "Contactado", "Entrevista LT", "Presentado", "Entrevista cliente", "Ejercicio técnico", "Oferta", "Contratado", "Descartado"];
+const FUNNEL = ETAPAS.filter((e) => e !== "Descartado");
 export const hoyBA = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
 
 let poolRef = null; // lo usa el aviso de opinión, fuera del registro de rutas
@@ -12,6 +12,13 @@ let poolRef = null; // lo usa el aviso de opinión, fuera del registro de rutas
 const SQL = `
 ALTER TABLE postulaciones ADD COLUMN IF NOT EXISTS etapas jsonb DEFAULT '[]'::jsonb;
 ALTER TABLE postulaciones ADD COLUMN IF NOT EXISTS motivo_detalle text;
+ALTER TABLE postulaciones ADD COLUMN IF NOT EXISTS feedback_cliente text;
+ALTER TABLE busquedas ADD COLUMN IF NOT EXISTS fecha_reapertura date;
+ALTER TABLE busquedas ADD COLUMN IF NOT EXISTS job_description text;
+ALTER TABLE candidatos ADD COLUMN IF NOT EXISTS informe text;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS motivo_inactivo text;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS detalle_inactivo text;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS ultimo_contacto date;
 CREATE TABLE IF NOT EXISTS links_cliente (
   token text PRIMARY KEY,
   busqueda_id text NOT NULL,
@@ -64,7 +71,7 @@ export function conEtapas(vals, antes, user) {
 }
 
 const alcance = (p) => {
-  const idx = [...(p.etapas || []), { etapa: p.etapa }].map((x) => ETAPAS.indexOf(x.etapa)).filter((i) => i >= 0 && i < 7);
+  const idx = [...(p.etapas || []), { etapa: p.etapa }].map((x) => ETAPAS.indexOf(x.etapa)).filter((i) => i >= 0 && i < FUNNEL.length);
   return idx.length ? Math.max(...idx) : 0;
 };
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -123,7 +130,7 @@ export function registerSeguimiento(app, { pool, auth, newId }) {
   async function cargar(token) {
     const { rows: ls } = await pool.query("SELECT * FROM links_cliente WHERE token = $1 AND activo", [String(token)]);
     const l = ls[0]; if (!l) return null;
-    const cols = "id, puesto, cliente, recruiter, estado, fecha_inicio::text AS fecha_inicio, fecha_cierre::text AS fecha_cierre, actualizado::text AS actualizado";
+    const cols = "id, puesto, cliente, recruiter, estado, coalesce(fecha_reapertura, fecha_inicio)::text AS fecha_inicio, fecha_cierre::text AS fecha_cierre, actualizado::text AS actualizado";
     let bs;
     if (l.busqueda_id) bs = (await pool.query(`SELECT ${cols} FROM busquedas WHERE id = $1`, [l.busqueda_id])).rows;
     else bs = (await pool.query(`SELECT ${cols} FROM busquedas WHERE estado IN ('Activa','En pausa') ORDER BY fecha_inicio DESC`)).rows.filter((b) => keyN(b.cliente) === keyN(l.cliente));
@@ -161,7 +168,7 @@ export function registerSeguimiento(app, { pool, auth, newId }) {
           return `<div class="cand" id="c-${esc(p.id)}"><div class="cand-top"><div><b>${esc(p.nombre || "Candidato")}</b><div class="muted small">${esc([p.rol_actual, p.empresa_actual].filter(Boolean).join(" · ") || "")}</div></div><span class="pill ${p.etapa === "Descartado" ? "off" : p.etapa === "Contratado" ? "ok" : ""}">${esc(p.etapa === "Descartado" ? "No continúa" : p.etapa)}</span></div>
             ${p.comentario_cliente ? `<p class="coment">${esc(p.comentario_cliente).replace(/\n/g, "<br>")}</p>` : ""}
             ${dec ? `<div class="muted small">Tu opinión: <b>${dec === "interesa" ? "Me interesa" : "No avanzar"}</b>${f.estado === "Pendiente" ? " · el equipo la está viendo" : ""}</div>` : ""}
-            ${puede ? `<details class="opinar"><summary>${dec ? "Cambiar mi opinión" : "Dar mi opinión"}</summary><form method="post" action="/c/${esc(l.token)}/opinion"><input type="hidden" name="p" value="${esc(p.id)}"><textarea name="comentario" maxlength="1000" placeholder="Comentario (opcional)"></textarea><div class="btns"><button name="decision" value="interesa" class="si">Me interesa</button><button name="decision" value="no" class="no">No avanzar</button></div></form></details>` : ""}</div>`;
+            ${puede ? `<details class="opinar"><summary>${dec ? "Cambiar mi opinión" : "Dar mi opinión"}</summary><form method="post" action="/c/${esc(l.token)}/opinion"><input type="hidden" name="p" value="${esc(p.id)}"><input name="autor" maxlength="80" placeholder="Tu nombre (opcional)" class="autor"><textarea name="comentario" maxlength="1000" placeholder="Comentario (opcional)"></textarea><div class="btns"><button name="decision" value="interesa" class="si">Me interesa</button><button name="decision" value="no" class="no">No avanzar</button></div></form></details>` : ""}</div>`;
         };
         return `<section class="${sola ? "" : "busq"}">${sola ? "" : `<h2 class="bt">${esc(b.puesto)}</h2>`}
           <div class="kpis"><div class="kpi"><span>Estado</span><b>${esc(b.estado)}</b></div><div class="kpi"><span>${abierta ? "Días en curso" : "Duración"}</span><b>${dd ?? "—"}</b></div><div class="kpi"><span>Presentados</span><b>${psb.filter((p) => alcance(p) >= 3).length}</b></div><div class="kpi"><span>Última novedad</span><b>${fd(ult)}</b></div></div>
@@ -186,9 +193,11 @@ export function registerSeguimiento(app, { pool, auth, newId }) {
       if (!p || !decision || alcance(p) < 3 || ["Descartado", "Contratado"].includes(p.etapa)) return res.redirect(303, `/c/${encodeURIComponent(d.l.token)}`);
       const b = d.bs.find((x) => x.id === p.busqueda_id) || {};
       const comentario = String(req.body?.comentario || "").trim().slice(0, 1000);
+      const autor = String(req.body?.autor || "").trim().slice(0, 80);
       const datos = decision === "no"
         ? { etapa: "Descartado", motivo: "Rechazado por el cliente", motivoDetalle: comentario, fecha: hoyBA(), _decision: "no" }
         : (alcance(p) < 4 ? { etapa: "Entrevista cliente", fecha: hoyBA(), _decision: "interesa" } : { _decision: "interesa" });
+      if (autor) datos._autor = autor;
       await pool.query("DELETE FROM propuestas WHERE fuente = 'Cliente' AND registro_id = $1 AND estado = 'Pendiente'", [p.id]);
       await pool.query(`INSERT INTO propuestas (id, ref, fuente, cuenta, fecha, resumen, evidencia, link, coleccion, registro_id, op, datos, estado)
         VALUES ($1,$2,'Cliente',$3,$4,$5,$6,$7,'postulaciones',$8,'actualizar',$9,'Pendiente')`,
@@ -197,12 +206,12 @@ export function registerSeguimiento(app, { pool, auth, newId }) {
           comentario || null, `/c/${d.l.token}`, p.id, JSON.stringify(datos)]);
       res.redirect(303, `/c/${encodeURIComponent(d.l.token)}?ok=1#c-${encodeURIComponent(p.id)}`);
       // Aviso por mail a la recruiter de la búsqueda y a los admins (sin frenar la respuesta al cliente)
-      avisarOpinion({ b, p, decision, comentario }).catch((e) => console.error("No se pudo avisar la opinión del cliente:", e.message));
+      avisarOpinion({ b, p, decision, comentario, autor }).catch((e) => console.error("No se pudo avisar la opinión del cliente:", e.message));
     } catch (e) { next(e); }
   });
 }
 
-async function avisarOpinion({ b, p, decision, comentario }) {
+async function avisarOpinion({ b, p, decision, comentario, autor }) {
   const para = await destinatariosBusqueda(poolRef, b.recruiter);
   const si = decision === "interesa";
   const r = await enviarMail({
@@ -211,7 +220,7 @@ async function avisarOpinion({ b, p, decision, comentario }) {
     html: plantilla({
       titulo: `${si ? "Me interesa" : "No avanzar"}: ${p.nombre || "candidato"}`,
       lineas: [
-        `<b>${escHtml(b.cliente || "El cliente")}</b> dejó su opinión en el link de seguimiento sobre <b>${escHtml(p.nombre || "un candidato")}</b> para <b>${escHtml(b.puesto || "la búsqueda")}</b>.`,
+        `<b>${escHtml(autor ? `${autor} (${b.cliente || "cliente"})` : b.cliente || "El cliente")}</b> dejó su opinión en el link de seguimiento sobre <b>${escHtml(p.nombre || "un candidato")}</b> para <b>${escHtml(b.puesto || "la búsqueda")}</b>.`,
         comentario ? `Comentario: “${escHtml(comentario)}”` : "No dejó comentario.",
         "La etapa no cambia hasta que un admin la apruebe en la Bandeja de propuestas.",
       ],
@@ -237,7 +246,7 @@ function pagina(titulo, body) {
   .cand-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pill{white-space:nowrap;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:#ECE4FD;color:#3D1A8A}.pill.ok{background:#DDEFE3;color:#2F7A4B}.pill.off{background:#F1F1F1;color:#5E5E5E}
   .coment{background:#F9F9F9;border-radius:8px;padding:8px 10px;font-size:14px}
   details.opinar summary{cursor:pointer;font-weight:600;font-size:14px;text-decoration:underline;text-decoration-color:#D9E151;text-decoration-thickness:2px;text-underline-offset:3px}
-  details.opinar form{display:flex;flex-direction:column;gap:8px;margin-top:8px}textarea{font:inherit;font-size:16px;border:1px solid #E3E3E3;border-radius:10px;padding:8px 10px;min-height:70px;width:100%}
+  details.opinar form{display:flex;flex-direction:column;gap:8px;margin-top:8px}textarea{font:inherit;font-size:16px;border:1px solid #E3E3E3;border-radius:10px;padding:8px 10px;min-height:70px;width:100%}input.autor{font:inherit;font-size:16px;border:1px solid #E3E3E3;border-radius:10px;padding:8px 10px;width:100%}
   .btns{display:flex;gap:8px;flex-wrap:wrap}.btns button{font:inherit;font-weight:600;border-radius:999px;padding:9px 16px;border:1px solid #E3E3E3;background:#fff;cursor:pointer}.btns .si{background:#D9E151;border-color:#D9E151}
   .aviso{background:#DDEFE3;color:#2F7A4B;border-radius:10px;padding:10px 12px;margin:12px 0;font-weight:600}
   .foot{margin-top:18px;font-size:12px;color:#5E5E5E;text-align:center}

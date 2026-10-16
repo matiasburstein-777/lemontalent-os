@@ -35,6 +35,8 @@ export const busquedas = pgTable("busquedas", {
   bitacora: jsonb("bitacora").default([]), // [{fecha, texto, autor}]
   minutas: jsonb("minutas").default([]), // [{fecha, titulo, url}] links de Granola
   actualizado: d("actualizado"),
+  fechaReapertura: d("fecha_reapertura"), // si se reabrió una búsqueda cancelada o cerrada: el TTF cuenta desde acá
+  jobDescription: text("job_description"),
 });
 
 // Datos de dinero de cada búsqueda: separados para que las recruiters no los vean.
@@ -68,6 +70,7 @@ export const candidatos = pgTable("candidatos", {
   minutas: jsonb("minutas").default([]),
   fuente: text("fuente"),
   creado: d("creado"),
+  informe: text("informe"), // informe del candidato (queda fijo; las minutas de Granola gratis se borran a los 30 días)
 });
 
 // Candidato x búsqueda (pipeline)
@@ -81,6 +84,7 @@ export const postulaciones = pgTable("postulaciones", {
   fecha: d("fecha"),
   notas: text("notas"),
   comentarioCliente: text("comentario_cliente"), // comentario del candidato que ve el cliente en su link
+  feedbackCliente: text("feedback_cliente"), // lo que el cliente opinó desde su link (queda al aprobarlo en la Bandeja)
   etapas: jsonb("etapas").default([]), // [{etapa, fecha, autor, motivo}] lo arma el servidor en cada cambio de etapa
 });
 
@@ -159,6 +163,9 @@ export const clientes = pgTable("clientes", {
   origen: text("origen"),
   minutas: jsonb("minutas").default([]),
   oportunidades: jsonb("oportunidades").default([]), // [{id, fecha, puesto, notas, estado: Abierta|Convertida|Perdida, busquedaId}]
+  motivoInactivo: text("motivo_inactivo"), // por qué un cliente no nos abre búsquedas hace más de 6 meses (lista fija)
+  detalleInactivo: text("detalle_inactivo"),
+  ultimoContacto: d("ultimo_contacto"),
 });
 
 export const leads = pgTable("leads", {

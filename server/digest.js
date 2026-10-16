@@ -70,9 +70,15 @@ export function registerDigest(app, { db, pool, S, auth, rank, RANK, R, clean, n
         propuestasPendientes: pend,
         reglas: {
           ops: OPS, colecciones: COLECCIONES,
-          etapasPostulacion: ["Sourcing", "Contactado", "Entrevista LT", "Presentado", "Entrevista cliente", "Oferta", "Contratado", "Descartado"],
+          etapasPostulacion: ["Sourcing", "Contactado", "Entrevista LT", "Presentado", "Entrevista cliente", "Ejercicio técnico", "Oferta", "Contratado", "Descartado"],
           estadosBusqueda: ["Activa", "En pausa", "Cerrada", "Cancelada"],
           etapasLead: ["Nuevo", "Contactado", "En conversación", "Propuesta enviada", "Ganado", "Perdido"],
+          // Pautas para quien arma las propuestas (pedidos del equipo, oct-2026)
+          instrucciones: [
+            "Si un evento de Calendar, un mail o un chat muestra el email o el teléfono de un candidato que en el sistema no lo tiene (ver candidatos), proponé op 'actualizar' en candidatos con ese dato.",
+            "Si una minuta de Granola es de una entrevista con un candidato, además de vincularla proponé op 'actualizar' en candidatos con el campo 'informe': un resumen claro de la entrevista (experiencia, motivación, pretensión, disponibilidad, puntos fuertes y a revisar). Granola gratis borra las minutas a los 30 días, así que el informe tiene que quedar en el sistema.",
+            "Si un mail o evento indica que se le mandó o devolvió un ejercicio técnico a un candidato, proponé pasar su postulación a la etapa 'Ejercicio técnico'.",
+          ],
         },
       });
     } catch (e) { next(e); }
@@ -172,6 +178,12 @@ export function registerDigest(app, { db, pool, S, auth, rank, RANK, R, clean, n
         if (p.op === "actualizar") {
           const vals = clean(r.t, datos); delete vals.id;
           if (p.coleccion === "postulaciones") conEtapas(vals, row, req.user); // historial de etapas (p. ej. opinión del cliente)
+          // Opinión del cliente desde su link: queda escrita en la postulación (quién, cuándo, qué decidió y su comentario)
+          if (p.coleccion === "postulaciones" && p.fuente === "Cliente" && datos._decision) {
+            const quien = datos._autor ? `${datos._autor} (${p.cuenta || "cliente"})` : p.cuenta || "Cliente";
+            const linea = `${today()} · ${quien}: ${datos._decision === "no" ? "No avanzar" : "Me interesa"}${p.evidencia ? ` — “${p.evidencia}”` : ""}`;
+            vals.feedbackCliente = [row.feedbackCliente, linea].filter(Boolean).join("\n");
+          }
           if (p.coleccion === "busquedas") vals.actualizado = today();
           if (Object.keys(vals).length) await db.update(r.t).set(vals).where(eq(cols.id, regId));
         } else if (p.op === "bitacora") {

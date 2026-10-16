@@ -1,6 +1,7 @@
 "use strict";
 // ---------- constants ----------
-const ETAPAS = ["Sourcing","Contactado","Entrevista LT","Presentado","Entrevista cliente","Oferta","Contratado","Descartado"];
+const ETAPAS = ["Sourcing","Contactado","Entrevista LT","Presentado","Entrevista cliente","Ejercicio técnico","Oferta","Contratado","Descartado"];
+const FUNNEL_E = ETAPAS.filter(e=>e!=="Descartado"); // etapas que suman al avance (todas menos Descartado)
 const ESTADOS_B = ["Activa","En pausa","Cerrada","Cancelada"];
 const ETAPAS_LEAD = ["Identificado","Contactado","En conversación","Propuesta enviada","Ganado","Perdido"];
 const ORIGENES_LEAD = ["Conocido","Referido de cliente","Referido","Cliente anterior","Inbound (nos escribió)","Evento","Prospección en frío"];
@@ -127,16 +128,20 @@ const obj = () => ({...DEF_OBJ,...(S.objetivos||{})});
 const postsOf = bid => vals(S.postulaciones).filter(p=>p.busquedaId===bid);
 const postsOfCand = cid => vals(S.postulaciones).filter(p=>p.candidatoId===cid);
 const lastTouch = b => { const l=(b.bitacora||[]).map(x=>x.fecha).sort().pop(); return [l,b.actualizado,b.fechaInicio].filter(Boolean).sort().pop(); };
-const ttf = b => (b.fechaInicio&&b.fechaCierre)? days(b.fechaInicio,b.fechaCierre) : null;
+// Si una búsqueda cancelada o cerrada se reabre, los días y el time to fill cuentan desde la reapertura
+const inicioEf = b => b.fechaReapertura||b.fechaInicio;
+const ttf = b => (inicioEf(b)&&b.fechaCierre)? days(inicioEf(b),b.fechaCierre) : null;
+// Tiempo de búsqueda para mostrar: abierta = días en curso; cerrada = time to fill (TTF); cancelada = duración
+const tiempoB = b => ["Activa","En pausa"].includes(b.estado) ? {n:days(inicioEf(b)),l:"días abierta"} : b.estado==="Cerrada" ? {n:ttf(b),l:"días de TTF"} : {n:ttf(b),l:"días hasta cancelar"};
 // Etapas por las que pasó una postulación (el servidor las guarda en cada cambio; las viejas solo tienen la actual)
 const trayecto = p => (p.etapas&&p.etapas.length) ? p.etapas : [{etapa:p.etapa,fecha:p.fecha}];
 // Etapa más avanzada a la que llegó (índice en ETAPAS, sin contar Descartado): base del funnel real
-const alcance = p => Math.max(0,...[...trayecto(p),{etapa:p.etapa}].map(x=>ETAPAS.indexOf(x.etapa)).filter(i=>i>=0&&i<7));
+const alcance = p => Math.max(0,...[...trayecto(p),{etapa:p.etapa}].map(x=>ETAPAS.indexOf(x.etapa)).filter(i=>i>=0&&i<FUNNEL_E.length));
 const ultimoMov = (b,ps=postsOf(b.id)) => [lastTouch(b),...ps.flatMap(p=>[p.fecha,...trayecto(p).map(x=>x.fecha)])].filter(Boolean).sort().pop();
 // Semáforo de una búsqueda activa. Las reglas de cantidad de candidatos esperan 7 días desde el inicio.
 function salud(b){
   if(b.estado!=="Activa") return {nivel:"",motivos:[]};
-  const ps=postsOf(b.id), vivos=ps.filter(p=>p.etapa!=="Descartado").length, sm=days(ultimoMov(b,ps)), dIni=days(b.fechaInicio);
+  const ps=postsOf(b.id), vivos=ps.filter(p=>p.etapa!=="Descartado").length, sm=days(ultimoMov(b,ps)), dIni=days(inicioEf(b));
   const terna=b.fechaPrimeraTerna||ps.some(p=>alcance(p)>=3), rojo=[], amar=[];
   if(sm!=null&&sm>7) rojo.push(`sin movimiento hace ${sm} días`); else if(sm!=null&&sm>4) amar.push(`sin movimiento hace ${sm} días`);
   if(!terna&&dIni!=null&&dIni>21) rojo.push(`sin terna a los ${dIni} días`);
@@ -150,6 +155,8 @@ const hace = d => d==null ? "—" : d<=0 ? "hoy" : `hace ${d} d`;
 function ageSev(d){ if(d==null) return ""; return d>60?"crit":d>35?"warn":"ok"; }
 function clientNames(){ return uniq([...vals(S.clientes).map(c=>c.nombre), ...B().map(b=>b.cliente)]).sort((a,b)=>a.localeCompare(b,"es")); }
 
+const MOTIVOS_INACTIVO=["Sin necesidades de contratación","Contrata con equipo interno","Eligió otra consultora","Precio","Cambió el contacto","Experiencia que no fue buena","Pausa o recorte de la empresa","Otro"];
+const ESTADO_CLI_LAB={Activo:"Búsquedas abiertas",Reciente:"Activo (últimos 6 meses)",Dormido:"Inactivo"};
 function clienteStats(){
   const map={};
   const get=n=>{ const k=keyN(n); return map[k] ||= {k,nombre:n,doc:null,bus:[],fcs:[]}; };
@@ -207,7 +214,7 @@ const afterHooks=[]; function afterRender(){ while(afterHooks.length) afterHooks
 // ---------- components ----------
 function kpi(label,value,sub,meter){ return `<div class="kpi"><span class="label">${label}</span><span class="v">${value}</span>${meter!=null?`<div class="meter${meter>1?" over":""}"><i style="width:${Math.min(100,Math.max(2,meter*100))}%"></i></div>`:""}${sub?`<span class="s">${sub}</span>`:""}</div>`; }
 function pillEstado(e){ const c={Activa:"lemon","En pausa":"info",Cerrada:"ok",Cancelada:"crit"}[e]||""; return `<span class="pill ${c}">${esc(e||"—")}</span>`; }
-function pillEtapa(e){ const c={Contratado:"ok",Descartado:"crit",Oferta:"lemon",Presentado:"info","Entrevista cliente":"info"}[e]||""; return `<span class="pill ${c}">${esc(e)}</span>`; }
+function pillEtapa(e){ const c={Contratado:"ok",Descartado:"crit",Oferta:"lemon",Presentado:"info","Entrevista cliente":"info","Ejercicio técnico":"info"}[e]||""; return `<span class="pill ${c}">${esc(e)}</span>`; }
 function pillLead(e){ const c={Ganado:"ok",Perdido:"crit","Propuesta enviada":"lemon","En conversación":"info"}[e]||""; return `<span class="pill ${c}">${esc(e)}</span>`; }
 const opt = (list,cur) => list.map(o=>{ const v=typeof o==="object"?o.v:o, l=typeof o==="object"?o.l:o; return `<option value="${esc(v)}"${String(v)===String(cur??"")?" selected":""}>${esc(l||"—")}</option>`; }).join("");
 const field = (label,id,value,type="text",extra="") => `<div class="f ${extra}"><label for="${id}">${label}</label><input id="${id}" type="${type}" value="${esc(value??"")}"${type==="number"?' step="any"':""}></div>`;
@@ -261,20 +268,22 @@ function vPanel(){
   if(sinAsignar) bars+=`<div class="bar"><span class="muted">Otras / sin asignar</span><div class="track"><i style="width:${Math.min(100,sinAsignar*20)}%;background:var(--muted)"></i></div><span class="num muted">${sinAsignar}</span></div>`;
   // atención
   const att=[];
-  act.forEach(b=>{ const lt=days(lastTouch(b)), d=days(b.fechaInicio); const mot=[]; let sev=null;
+  act.forEach(b=>{ const lt=days(lastTouch(b)), d=days(inicioEf(b)); const mot=[]; let sev=null;
     if(lt!=null&&lt>7){ mot.push(lt===d?`sin novedades desde que se abrió hace ${d} días`:`sin actualizar hace ${lt} días`); sev=lt>14?"crit":"warn"; }
     if(d>60&&lt!==d){ mot.push(`abierta hace ${d} días`); sev="crit"; }
     if(mot.length){ const t=mot.join(" · "); att.push({sev,g:"Búsquedas",t:`${b.puesto} · ${b.cliente}`,d:t[0].toUpperCase()+t.slice(1)+(b.recruiter?` · ${b.recruiter}`:""),act:"openBusqueda",id:b.id}); } });
+  // Ingresos: el día que empieza un candidato (desde hoy hasta 14 días adelante)
+  B().filter(b=>b.fechaIngreso&&days(today(),b.fechaIngreso)>=0&&days(today(),b.fechaIngreso)<=14).forEach(b=>{ const n=days(today(),b.fechaIngreso); att.push({sev:n<=1?"ok":"info",lab:n===0?"Hoy":n===1?"Mañana":"Ingreso",g:"Ingresos",t:`${b.candidatoFinal||"Nuevo ingreso"} · ${b.cliente}`,d:`Empieza ${n===0?"hoy":n===1?"mañana":"el "+fd(b.fechaIngreso)} como ${b.puesto}`,act:"openBusqueda",id:b.id}); });
   B().filter(b=>b.finGarantia&&days(today(),b.finGarantia)>=0&&days(today(),b.finGarantia)<=30).forEach(b=>att.push({sev:"info",g:"Garantías",t:`${b.candidatoFinal||b.puesto} · ${b.cliente}`,d:`Garantía vence ${fd(b.finGarantia)}`,act:"openBusqueda",id:b.id}));
   if(canFin){
     vals(S.facturas).filter(f=>!f.cobrada&&days(f.fechaEmision)>30).forEach(f=>att.push({sev:"crit",g:"Cobros",t:`Cobrar ${money(f.monto,f.moneda)} · ${f.cliente}`,d:`Emitida hace ${days(f.fechaEmision)} días`,act:"openFactura",id:f.id}));
     vals(S.leads).filter(l=>l.proximoSeguimiento&&l.proximoSeguimiento<=today()&&!["Ganado","Perdido"].includes(l.etapa)).forEach(l=>att.push({sev:"warn",g:"Comercial",t:`Seguimiento ${l.empresa}`,d:`Programado ${fd(l.proximoSeguimiento)}`,act:"openLead",id:l.id}));
   }
-  const order={crit:0,warn:1,info:2};
+  const order={crit:0,warn:1,ok:2,info:3};
   const grupos=uniq(att.map(a=>a.g)); UI.attG=grupos.includes(UI.attG)?UI.attG:"";
   const lista=sortBy(att.filter(a=>!UI.attG||a.g===UI.attG),a=>order[a.sev]);
   const filtros=grupos.length>1?`<div class="seg" role="group" aria-label="Filtrar"><button data-act="attG" data-v="" aria-pressed="${!UI.attG}">Todo <span class="muted num">${att.length}</span></button>${grupos.map(g=>`<button data-act="attG" data-v="${esc(g)}" aria-pressed="${UI.attG===g}">${esc(g)} <span class="muted num">${att.filter(a=>a.g===g).length}</span></button>`).join("")}</div>`:"";
-  const fila=a=>`<div class="row"><div class="grow"><div><b>${esc(a.t)}</b></div><div class="muted">${esc(a.d)}</div></div><span class="pill ${a.sev}">${a.sev==="crit"?"Urgente":a.sev==="warn"?"Revisar":"Próximo"}</span><button class="btn sm" data-act="${a.act}" data-id="${esc(a.id)}">Abrir</button></div>`;
+  const fila=a=>`<div class="row"><div class="grow"><div><b>${esc(a.t)}</b></div><div class="muted">${esc(a.d)}</div></div><span class="pill ${a.sev}">${a.lab||(a.sev==="crit"?"Urgente":a.sev==="warn"?"Revisar":"Próximo")}</span><button class="btn sm" data-act="${a.act}" data-id="${esc(a.id)}">Abrir</button></div>`;
   const attH=lista.length? lista.slice(0,10).map(fila).join("")+(lista.length>10?`<details class="more"><summary>Ver ${lista.length-10} más</summary>${lista.slice(10).map(fila).join("")}</details>`:"") : `<div class="empty">Nada pendiente. Todas las búsquedas activas tienen novedades de esta semana.</div>`;
   let cal="";
   if(canFin){ const q=calidadDatos(); if(q.length) cal=`<div class="note" style="margin-top:10px">${q.length} puntos de calidad de datos para revisar. <a href="#calidad">Ver calidad de datos</a></div>`; }
@@ -299,7 +308,7 @@ function vBusquedas(){
   if(UI.bQ){ const q=keyN(UI.bQ); list=list.filter(b=>keyN([b.puesto,b.cliente,b.candidatoFinal,b.recruiter].join(" ")).includes(q)); }
   if(UI.bMode==="seg") UI.bMode="cards";
   // Orden: riesgo (semáforo, después más días abierta), días abierta, último movimiento, cliente o fecha de inicio
-  const ORD={riesgo:["Por riesgo",b=>`${SALUD_ORD[salud(b).nivel]}${String(99999-(days(b.fechaInicio)||0)).padStart(5,"0")}`,1],dias:["Por días abierta",b=>b.fechaInicio||"9999",1],mov:["Por último mov.",b=>ultimoMov(b)||"",1],cliente:["Por cliente",b=>keyN(b.cliente),1],inicio:["Más recientes",b=>b.fechaInicio||"",-1]};
+  const ORD={riesgo:["Por riesgo",b=>`${SALUD_ORD[salud(b).nivel]}${String(99999-(days(inicioEf(b))||0)).padStart(5,"0")}`,1],dias:["Por días abierta",b=>b.fechaInicio||"9999",1],mov:["Por último mov.",b=>ultimoMov(b)||"",1],cliente:["Por cliente",b=>keyN(b.cliente),1],inicio:["Más recientes",b=>b.fechaInicio||"",-1]};
   if(!ORD[UI.bOrd]) UI.bOrd="riesgo";
   const ord=UI.bOrd;
   list=sortBy(list,ORD[ord][1],ORD[ord][2]);
@@ -311,7 +320,7 @@ function vBusquedas(){
     <select id="f-brec" data-ui="bRec" aria-label="Recruiter"><option value="">Todas las recruiters</option>${opt(recs,UI.bRec)}</select>
     <select id="f-bcli" data-ui="bCli" aria-label="Cliente"><option value="">Todos los clientes</option>${opt(uniq(B().map(b=>b.cliente)).sort((a,b)=>a.localeCompare(b,"es")),UI.bCli)}</select>
     <input id="q-b" type="search" placeholder="Buscar puesto, cliente o candidato" data-ui="bQ" value="${esc(UI.bQ)}">
-  </div>
+  </div>${canFin?opsPanel():""}
   <div class="toolbar"><div class="seg" role="group" aria-label="Vista"><button data-act="bMode" data-v="cards" aria-pressed="${UI.bMode==="cards"}">Tarjetas</button><button data-act="bMode" data-v="table" aria-pressed="${UI.bMode==="table"}">Tabla</button></div>
     <select id="f-bord" data-ui="bOrd" aria-label="Ordenar por">${Object.entries(ORD).map(([k,[l]])=>`<option value="${k}"${k===ord?" selected":""}>${l}</option>`).join("")}</select>${xbtn("busquedas","Excel")}</div>`;
   if(!list.length) return h+`<div class="empty">No hay búsquedas con estos filtros.</div>`;
@@ -326,7 +335,7 @@ function vBusquedas(){
   return h;
 }
 function cardBusqueda(b){
-  const d=b.estado==="Activa"?days(b.fechaInicio):ttf(b); const lt=days(lastTouch(b));
+  const d=b.estado==="Activa"?days(inicioEf(b)):ttf(b); const lt=days(lastTouch(b));
   const ps=postsOf(b.id), sm=days(ultimoMov(b,ps));
   const stages=ps.length?`<div class="segcard-nums">${miniFunnel(ps)}<span><b class="num">${ps.filter(p=>p.etapa!=="Descartado").length}</b> vivos</span><span><b class="num">${ps.filter(p=>alcance(p)>=3).length}</b> presentados</span><span class="muted">mov. ${hace(sm)}</span></div>`:"";
   return `<article class="card">
@@ -355,12 +364,27 @@ function vCandidatos(){
     if(!ps.length) h+=`<div class="note">Esta búsqueda todavía no tiene candidatos cargados. Usá “Sumar candidato” para empezar el pipeline.</div>`;
   } else {
     let list=vals(S.candidatos);
-    if(UI.cQ){ const q=keyN(UI.cQ); list=list.filter(c=>keyN([c.nombre,c.rolActual,c.empresaActual,c.area,c.seniority,(c.tags||[]).join(" "),c.notas].join(" ")).includes(q)); }
-    list=sortBy(list,c=>c.creado||"",-1);
-    h+=`<div class="toolbar"><input id="q-c" type="search" placeholder="Buscar por nombre, rol, área, empresa o etiqueta" data-ui="cQ" value="${esc(UI.cQ)}" style="flex:1;min-width:220px"><span class="muted">${list.length} candidatos</span>${xbtn("candidatos")}</div>`;
+    if(UI.cQ){ const q=keyN(UI.cQ); list=list.filter(c=>keyN([c.nombre,c.rolActual,c.empresaActual,c.area,c.seniority,(c.tags||[]).join(" "),c.notas,c.informe,c.pretension,c.ubicacion].join(" ")).includes(q)); }
+    // Filtros: por búsqueda y etapa (el pipeline de una búsqueda como lista), área y seniority
+    if(UI.cB&&!S.busquedas[UI.cB]) UI.cB="";
+    const enB=UI.cB?Object.fromEntries(postsOf(UI.cB).map(p=>[p.candidatoId,p])):null;
+    if(enB) list=list.filter(c=>enB[c.id]);
+    if(UI.cE) list=list.filter(c=>enB?enB[c.id]&&enB[c.id].etapa===UI.cE:postsOfCand(c.id).some(p=>p.etapa===UI.cE));
+    if(UI.cA) list=list.filter(c=>c.area===UI.cA);
+    if(UI.cS) list=list.filter(c=>c.seniority===UI.cS);
+    list=enB?sortBy(list,c=>ETAPAS.indexOf(enB[c.id].etapa)):sortBy(list,c=>c.creado||"",-1);
+    const bOpts=[...sortBy(activas(),b=>b.cliente),...sortBy(B().filter(b=>b.estado!=="Activa"),b=>b.fechaInicio||"",-1)];
+    const areas=uniq(vals(S.candidatos).map(c=>c.area).filter(Boolean)).sort(), sens=uniq(vals(S.candidatos).map(c=>c.seniority).filter(Boolean)).sort();
+    h+=`<div class="toolbar"><input id="q-c" type="search" placeholder="Buscar por nombre, rol, empresa, etiqueta, notas o informe" data-ui="cQ" value="${esc(UI.cQ)}" style="flex:1;min-width:220px">
+      <select data-ui="cB" aria-label="Búsqueda"><option value="">Todas las búsquedas</option>${bOpts.map(b=>`<option value="${b.id}"${b.id===UI.cB?" selected":""}>${esc(b.cliente)} · ${esc(b.puesto)}${b.estado!=="Activa"?` (${b.estado.toLowerCase()})`:""}</option>`).join("")}</select>
+      <select data-ui="cE" aria-label="Etapa"><option value="">Todas las etapas</option>${opt(ETAPAS,UI.cE)}</select>
+      ${areas.length?`<select data-ui="cA" aria-label="Área"><option value="">Todas las áreas</option>${opt(areas,UI.cA)}</select>`:""}
+      ${sens.length?`<select data-ui="cS" aria-label="Seniority"><option value="">Todo seniority</option>${opt(sens,UI.cS)}</select>`:""}
+      <span class="muted">${list.length} candidatos</span>${xbtn("candidatos")}</div>
+    ${UI.cB?`<div class="note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Mostrando el pipeline de <b>${esc(S.busquedas[UI.cB].puesto)} · ${esc(S.busquedas[UI.cB].cliente)}</b> ordenado por etapa.<button class="btn sm" data-act="openBusqueda" data-id="${UI.cB}">Ver la búsqueda</button><button class="btn sm" data-act="cargaMasiva" data-id="${UI.cB}">Carga masiva</button></div>`:""}`;
     h+= list.length? `<div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Rol / empresa</th><th>Área · seniority</th><th>Procesos</th><th>Etiquetas</th></tr></thead><tbody>
       ${list.slice(0,400).map(c=>{const ps=postsOfCand(c.id); const last=sortBy(ps,p=>p.fecha||"",-1)[0];
-        return `<tr class="click" data-act="openCandidato" data-id="${c.id}"><td><b>${esc(c.nombre)}</b>${c.linkedin?`<div class="muted" style="font-size:12px">LinkedIn</div>`:""}</td><td>${esc(c.rolActual||"—")}<div class="muted">${esc(c.empresaActual||"")}</div></td><td>${esc([c.area,c.seniority].filter(Boolean).join(" · ")||"—")}</td><td>${ps.length} ${last?pillEtapa(last.etapa):""}</td><td>${(c.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(" ")}</td></tr>`;}).join("")}
+        return `<tr class="click" data-act="openCandidato" data-id="${c.id}"><td><b>${esc(c.nombre)}</b>${c.linkedin?`<div class="muted" style="font-size:12px">LinkedIn</div>`:""}</td><td>${esc(c.rolActual||"—")}<div class="muted">${esc(c.empresaActual||"")}</div></td><td>${esc([c.area,c.seniority].filter(Boolean).join(" · ")||"—")}</td><td>${enB?pillEtapa(enB[c.id].etapa):`${ps.length} ${last?pillEtapa(last.etapa):""}`}</td><td>${(c.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(" ")}</td></tr>`;}).join("")}
     </tbody></table></div>` : `<div class="empty">Sin resultados.</div>`;
   }
   return h;
@@ -371,7 +395,7 @@ function boardHTML(ps){
   return `<div class="board">${ETAPAS.map(e=>{ const items=sortBy(ps.filter(p=>p.etapa===e),p=>p.fecha||"",-1);
     return `<div class="col"><div class="col-h"><span class="label">${e}</span><span class="cnt">${items.length}</span></div>
     ${items.map(p=>{const c=S.candidatos[p.candidatoId]||{}; const dE=days(trayecto(p).slice(-1)[0].fecha||p.fecha);
-      return `<div class="mini" data-act="openCandidato" data-id="${p.candidatoId}"><b>${esc(c.nombre||"Candidato")}</b><span class="muted">${esc([c.rolActual,c.empresaActual].filter(Boolean).join(" · ")||"—")}</span>${p.etapa==="Descartado"&&p.motivo?`<span class="tag">${esc(p.motivo)}</span>`:""}${p.notas?`<span>${esc(p.notas)}</span>`:""}${dE!=null&&!["Contratado","Descartado"].includes(p.etapa)?`<span class="muted" style="font-size:11.5px">${dE} días en la etapa</span>`:""}
+      return `<div class="mini" data-act="openCandidato" data-id="${p.candidatoId}"><b>${esc(c.nombre||"Candidato")}</b><span class="muted">${esc([c.rolActual,c.empresaActual].filter(Boolean).join(" · ")||"—")}</span>${p.etapa==="Descartado"&&p.motivo?`<span class="tag">${esc(p.motivo)}</span>`:""}${p.feedbackCliente?`<span class="tag" title="${esc(p.feedbackCliente)}">Opinó el cliente</span>`:""}${p.notas?`<span>${esc(p.notas)}</span>`:""}${dE!=null&&!["Contratado","Descartado"].includes(p.etapa)?`<span class="muted" style="font-size:11.5px">${dE} días en la etapa</span>`:""}
       <select data-post="${p.id}" aria-label="Etapa">${opt(ETAPAS,p.etapa)}</select></div>`;}).join("")}</div>`; }).join("")}</div>`;
 }
 
@@ -386,13 +410,13 @@ function tablaSeguimiento(list){
   const tarjetas=`<div class="list solo-mob">${rows.map(({b,sa,ps})=>`<div class="segcard click" data-act="openBusqueda" data-id="${b.id}">
     <div class="segcard-top"><div style="min-width:0"><b>${esc(b.puesto)}</b><div class="muted">${esc(b.cliente)} · ${esc(b.recruiter||"—")}</div></div>${pillSalud(sa)||pillEstado(b.estado)}</div>
     ${sa.motivos.length?`<div class="muted" style="font-size:12.5px">${esc(sa.motivos.join(" · "))}</div>`:""}
-    <div class="segcard-nums">${ps.length?miniFunnel(ps):""}<span><b class="num">${(b.estado==="Activa"?days(b.fechaInicio):ttf(b))??"—"}</b> días</span><span><b class="num">${ps.filter(p=>p.etapa!=="Descartado").length}</b> vivos</span><span><b class="num">${ps.filter(p=>alcance(p)>=3).length}</b> present.</span><span class="muted">${hace(days(ultimoMov(b,ps)))}</span></div>
+    <div class="segcard-nums">${ps.length?miniFunnel(ps):""}<span title="${b.estado==="Cerrada"?"Time to fill: desde el inicio (o la reapertura) hasta el cierre":"Días desde el inicio (o la reapertura)"}"><b class="num">${tiempoB(b).n??"—"}</b> ${tiempoB(b).l}</span><span><b class="num">${ps.filter(p=>p.etapa!=="Descartado").length}</b> vivos</span><span><b class="num">${ps.filter(p=>alcance(p)>=3).length}</b> present.</span><span class="muted">${hace(days(ultimoMov(b,ps)))}</span></div>
     ${b.proximoPaso?`<div style="font-size:13px"><span class="muted">Próximo paso:</span> ${esc(b.proximoPaso)}</div>`:""}</div>`).join("")}</div>`;
   return tarjetas+`<details class="note"><summary>¿Cómo se calcula el semáforo?</summary>Semáforo: <b>en riesgo</b> si no hay movimiento hace más de 7 días, no se presentó terna a los 21 días o no quedan candidatos vivos · <b>atención</b> si no hay movimiento hace más de 4 días o quedan menos de 3 candidatos vivos. El funnel en miniatura muestra cuántos llegaron a cada etapa (Sourcing → Contratado).</details>
-  <div class="tablewrap solo-desk"><table><thead><tr><th>Semáforo</th><th>Búsqueda</th><th>Recruiter</th><th class="r">Días</th><th>Funnel</th><th class="r">Vivos</th><th class="r">Presentados</th><th>Último movimiento</th><th>Próximo paso</th></tr></thead><tbody>
+  <div class="tablewrap solo-desk"><table><thead><tr><th>Semáforo</th><th>Búsqueda</th><th>Recruiter</th><th class="r" title="Abiertas: días en curso. Cerradas: time to fill">Días / TTF</th><th>Funnel</th><th class="r">Vivos</th><th class="r">Presentados</th><th>Último movimiento</th><th>Próximo paso</th></tr></thead><tbody>
   ${rows.map(({b,sa,ps})=>{ const sm=days(ultimoMov(b,ps));
     return `<tr class="click" data-act="openBusqueda" data-id="${b.id}"><td>${pillSalud(sa)||pillEstado(b.estado)}${sa.motivos.length?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(sa.motivos.join(" · "))}</div>`:""}</td>
-    <td><b>${esc(b.puesto)}</b><div class="muted">${esc(b.cliente)}</div></td><td>${esc(b.recruiter||"—")}</td><td class="r num">${(b.estado==="Activa"?days(b.fechaInicio):ttf(b))??"—"}</td>
+    <td><b>${esc(b.puesto)}</b><div class="muted">${esc(b.cliente)}</div></td><td>${esc(b.recruiter||"—")}</td><td class="r num">${tiempoB(b).n??"—"}${b.estado==="Cerrada"&&tiempoB(b).n!=null?' <span class="muted" style="font-size:11px">TTF</span>':""}</td>
     <td>${ps.length?miniFunnel(ps):'<span class="muted">—</span>'}</td><td class="r num">${ps.filter(p=>p.etapa!=="Descartado").length}</td><td class="r num">${ps.filter(p=>alcance(p)>=3).length}</td>
     <td class="num">${hace(sm)}</td><td style="max-width:280px">${esc(b.proximoPaso||"—")}</td></tr>`; }).join("")}
   </tbody></table></div>`;
@@ -401,7 +425,7 @@ function tablaSeguimiento(list){
 function tiemposEtapa(ps){
   const acc={};
   ps.forEach(p=>{ const t=trayecto(p); t.forEach((x,i)=>{ if(["Contratado","Descartado"].includes(x.etapa)||!x.fecha) return; const hasta=t[i+1]?t[i+1].fecha:today(); if(!hasta) return; const d=days(x.fecha,hasta); if(d==null||d<0) return; (acc[x.etapa] ||= []).push(d); }); });
-  return ETAPAS.slice(0,6).filter(e=>acc[e]).map(e=>({e,n:acc[e].length,prom:acc[e].reduce((a,b)=>a+b,0)/acc[e].length}));
+  return ETAPAS.filter(e=>!["Contratado","Descartado"].includes(e)&&acc[e]).map(e=>({e,n:acc[e].length,prom:acc[e].reduce((a,b)=>a+b,0)/acc[e].length}));
 }
 // Descartes: por motivo y etapa en la que quedaron afuera
 function descartes(ps){
@@ -415,7 +439,7 @@ function vFicha(){
   const b=S.busquedas[UI.fichaId];
   if(!b) return `<div class="head"><div><a href="#busquedas">← Búsquedas</a><h1>Búsqueda</h1></div></div><div class="empty">${!B().length?"Cargando…":"No se encontró esta búsqueda. Puede que la hayan eliminado."}</div>`;
   const ps=postsOf(b.id), sa=salud(b), vivos=ps.filter(p=>p.etapa!=="Descartado"), pres=ps.filter(p=>alcance(p)>=3);
-  const d=b.estado==="Activa"?days(b.fechaInicio):ttf(b), sm=days(ultimoMov(b,ps));
+  const d=b.estado==="Activa"?days(inicioEf(b)):ttf(b), sm=days(ultimoMov(b,ps));
   const terna=b.fechaPrimeraTerna?`${fd(b.fechaPrimeraTerna)}`:pres.length?"Sí":"Pendiente";
   const dTerna=b.fechaPrimeraTerna&&b.fechaInicio?days(b.fechaInicio,b.fechaPrimeraTerna):null;
   const ti=tiemposEtapa(ps), de=descartes(ps);
@@ -423,12 +447,14 @@ function vFicha(){
     <p class="keep" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${esc(b.cliente)} · ${b.recruiter&&(canFin||keyN(b.recruiter)===keyN(miNombreRec()))?`<a href="#recruiter/${encodeURIComponent(b.recruiter)}">${esc(b.recruiter)}</a>`:esc(b.recruiter||"Sin recruiter")}${b.prioridad?` · Prioridad ${esc(b.prioridad)}`:""} ${pillEstado(b.estado)} ${pillSalud(sa)}</p></div>
     <div class="toolbar"><button class="btn" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button><button class="btn" data-act="addPost" data-id="${b.id}">Sumar candidato</button><button class="btn" data-act="editBusqueda" data-id="${b.id}">Editar</button><button class="btn" data-act="repCliente" data-id="${b.id}">Reporte PDF</button><button class="btn lemon" data-act="linkCliente" data-id="${b.id}">Link para el cliente</button></div></div>`;
   if(sa.motivos.length) h+=`<div class="panel cal ${sa.nivel}"><b>${SALUD_LAB[sa.nivel]}</b><span>${esc(sa.motivos.map(m=>m[0].toUpperCase()+m.slice(1)).join(" · "))}.</span></div>`;
-  h+=`<div class="kpis">${kpi(b.estado==="Activa"?"Días en curso":"Duración",d??"—",b.fechaInicio?`inicio ${fd(b.fechaInicio)}`:"")}${kpi("Candidatos",ps.length,`${vivos.length} vivos · ${de.n} descartados`)}${kpi("Presentados al cliente",pres.length,`primera terna: ${terna}${dTerna!=null?` (día ${dTerna})`:""}`)}${kpi("Último movimiento",hace(sm),ultimoMov(b,ps)?fd(ultimoMov(b,ps)):"")}</div>`;
+  if(b.fechaIngreso&&b.candidatoFinal&&days(b.fechaIngreso)!=null&&days(b.fechaIngreso)<=0) h+=`<div class="panel cal ok"><b>Ingreso</b><span>${esc(b.candidatoFinal)} empieza ${days(b.fechaIngreso)===0?"hoy":"el "+fd(b.fechaIngreso)}.</span></div>`;
+  h+=`<div class="kpis">${kpi(b.estado==="Activa"?"Días en curso":"Duración",d??"—",b.fechaReapertura?`reabierta ${fd(b.fechaReapertura)} · inicio ${fd(b.fechaInicio)}`:b.fechaInicio?`inicio ${fd(b.fechaInicio)}`:"")}${kpi("Candidatos",ps.length,`${vivos.length} vivos · ${de.n} descartados`)}${kpi("Presentados al cliente",pres.length,`primera terna: ${terna}${dTerna!=null?` (día ${dTerna})`:""}`)}${kpi("Último movimiento",hace(sm),ultimoMov(b,ps)?fd(ultimoMov(b,ps)):"")}</div>`;
   h+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Funnel</h2><span class="muted">cuántos llegaron a cada etapa</span></div>${ps.length?funnelHTML(ps,""):`<div class="muted">Todavía no hay candidatos. Usá “Sumar candidato” para empezar.</div>`}</section>
     <section class="panel"><div class="panel-head"><h2>Estado</h2><button class="btn sm" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button></div>
     ${b.detalle?`<p><span class="label">Estado actual</span><br>${esc(b.detalle)}</p>`:""}${b.proximoPaso?`<p><span class="label">Próximo paso</span><br>${esc(b.proximoPaso)}</p>`:""}${!b.detalle&&!b.proximoPaso?`<p class="muted">Sin novedades cargadas.</p>`:""}
     <span class="label">Bitácora</span>${(b.bitacora||[]).length?`<div class="log">${sortBy(b.bitacora,x=>x.fecha,-1).slice(0,6).map(x=>`<div><small>${fd(x.fecha)} · ${esc(authorName(x.autor))}</small>${esc(x.texto)}</div>`).join("")}</div>`:`<div class="muted" style="font-size:13px">Sin entradas todavía.</div>`}</section></div>`;
-  h+=`<section class="panel"><div class="panel-head"><h2>Pipeline</h2><span style="display:flex;gap:6px">${xbtnFicha(b.id)}<button class="btn sm" data-act="addPost" data-id="${b.id}">Sumar candidato</button></span></div>${ps.length?boardHTML(ps):`<div class="muted">Sin candidatos en el pipeline.</div>`}</section>`;
+  h+=`<details class="panel jd"${b.jobDescription?"":" open"}><summary><h2 style="display:inline">Job description</h2> <span class="muted">${b.jobDescription?"tocá para ver":"todavía no se cargó"}</span></summary>${b.jobDescription?`<div class="jd-text">${esc(b.jobDescription)}</div>`:`<p class="muted">Pegala con <b>Editar</b>; también podés adjuntar el PDF ahí.</p>`}<div><button class="btn sm" data-act="editBusqueda" data-id="${b.id}">${b.jobDescription?"Editar job description":"Cargar job description"}</button></div></details>`;
+  h+=`<section class="panel"><div class="panel-head"><h2>Pipeline</h2><span style="display:flex;gap:6px">${xbtnFicha(b.id)}<button class="btn sm" data-act="cargaMasiva" data-id="${b.id}">Carga masiva</button><button class="btn sm" data-act="addPost" data-id="${b.id}">Sumar candidato</button></span></div>${ps.length?boardHTML(ps):`<div class="muted">Sin candidatos en el pipeline.</div>`}</section>`;
   h+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Tiempo por etapa</h2><span class="muted">promedio en días</span></div>${ti.length?barras(ti.map(x=>[x.e,Math.round(x.prom),` · ${x.n}`]),v=>`${v} d`)+`<div class="muted" style="font-size:12px">Promedio de días que pasan los candidatos en cada etapa (y cuántos se midieron). Se vuelve más preciso a medida que se registran los cambios de etapa.</div>`:`<div class="muted">Todavía no hay cambios de etapa registrados.</div>`}</section>
     <section class="panel"><div class="panel-head"><h2>Descartes</h2><span class="muted">${de.n} en total</span></div>${de.n?`<span class="label">Por motivo</span>${barras(de.mot)}<span class="label">Etapa en la que quedaron afuera</span>${barras(de.eta)}`:`<div class="muted">No hay candidatos descartados.</div>`}</section></div>`;
   return h;
@@ -456,7 +482,7 @@ async function drawerLink(bid,alc){
   ${l?`<div class="section"><span class="label">Link activo</span><div class="row"><input id="lk-url" type="text" readonly value="${esc(url)}" style="flex:1"><button class="btn sm" data-act="copyLink">Copiar</button></div>
     <div class="muted" style="font-size:12px">${l.vistas?`Abierto ${l.vistas} ${l.vistas===1?"vez":"veces"} · última ${new Date(l.ultimaVista).toLocaleString("es-AR")}`:"Todavía no lo abrieron."}</div>
     <div><button class="btn sm danger" data-act="unlinkCliente" data-id="${bid}" data-v="${alc}">Desactivar link</button></div></div>`:""}
-  <div class="form">${farea("Estado (lo lee el cliente)","lk-res",l?l.resumen:(alc==="busqueda"?b.detalle||"":""))}${farea("Próximos pasos","lk-pp",l?l.proximos:(alc==="busqueda"?b.proximoPaso||"":""))}
+  <div class="form"><div class="f full"><label for="lk-res">Mensaje para el cliente (opcional)</label><textarea id="lk-res" placeholder="Por ejemplo: esta semana presentamos 3 perfiles nuevos. No se copia nada de la weekly ni de las notas internas.">${esc(l?l.resumen||"":"")}</textarea></div><div class="f full"><label for="lk-pp">Próximos pasos (opcional)</label><textarea id="lk-pp" placeholder="Por ejemplo: entrevistas finales el martes.">${esc(l?l.proximos||"":"")}</textarea></div>
   <label class="check full"><input id="lk-cand" type="checkbox"${!l||l.mostrarCandidatos?" checked":""}> Mostrar candidatos presentados</label>
   <label class="check full"><input id="lk-desc" type="checkbox"${!l||l.ocultarDescartados?" checked":""}> Ocultar a los que ya no continúan</label></div>
   ${pres.length?`<div class="section"><span class="label">Comentario para el cliente sobre cada candidato (${esc(b.puesto)})</span>${pres.map(p=>{const c=S.candidatos[p.candidatoId]||{}; return `<div class="f full"><label for="lk-c-${p.id}">${esc(c.nombre||"Candidato")} · ${esc(p.etapa)}</label><textarea id="lk-c-${p.id}" placeholder="Ej.: fuerte en negociación, disponible en 30 días">${esc(p.comentarioCliente||"")}</textarea></div>`;}).join("")}</div>`:""}`;
@@ -552,7 +578,7 @@ function vRecruiter(){
   // Búsquedas
   const fb=UI.recB||"activas", lb=sortBy(st.mine.filter(b=>fb==="todas"||(fb==="activas"?["Activa","En pausa"].includes(b.estado):fb==="cerradas"?["Cerrada","Cancelada"].includes(b.estado):true)),b=>b.fechaInicio||"",-1);
   h+=`<section class="panel"><div class="panel-head"><h2>Búsquedas</h2><div class="seg" role="group">${[["activas","Abiertas"],["cerradas","Terminadas"],["todas","Todas"]].map(([v,l])=>`<button data-act="recB" data-v="${v}" aria-pressed="${fb===v}">${l}</button>`).join("")}</div></div>
-  ${lb.length?`<div class="list">${lb.slice(0,200).map(b=>{ const sa=salud(b); return `<div class="row click" data-act="openBusqueda" data-id="${b.id}"><div class="grow" style="min-width:0"><b>${esc(b.puesto)}</b><div class="muted" style="font-size:12px">${esc(b.cliente)} · inicio ${fd(b.fechaInicio)}${b.fechaCierre?" · cierre "+fd(b.fechaCierre):""}</div></div><div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px">${pillSalud(sa)||pillEstado(b.estado)}<span class="num muted" style="font-size:12px">${b.estado==="Activa"?`${days(b.fechaInicio)??"—"} días`:ttf(b)!=null?`TTF ${ttf(b)} d`:""}</span></div></div>`; }).join("")}</div>`:'<div class="muted">No hay búsquedas en esta vista.</div>'}</section>`;
+  ${lb.length?`<div class="list">${lb.slice(0,200).map(b=>{ const sa=salud(b); return `<div class="row click" data-act="openBusqueda" data-id="${b.id}"><div class="grow" style="min-width:0"><b>${esc(b.puesto)}</b><div class="muted" style="font-size:12px">${esc(b.cliente)} · inicio ${fd(b.fechaInicio)}${b.fechaCierre?" · cierre "+fd(b.fechaCierre):""}</div></div><div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px">${pillSalud(sa)||pillEstado(b.estado)}<span class="num muted" style="font-size:12px">${b.estado==="Activa"?`${days(inicioEf(b))??"—"} días`:ttf(b)!=null?`TTF ${ttf(b)} d`:""}</span></div></div>`; }).join("")}</div>`:'<div class="muted">No hay búsquedas en esta vista.</div>'}</section>`;
   return h;
 }
 
@@ -575,10 +601,15 @@ function vCrm(){
         return `<div class="mini" data-act="openLead" data-id="${l.id}"><b>${esc(l.empresa)}</b><span class="muted">${esc([l.contacto,l.cargo].filter(Boolean).join(" · ")||"—")}</span>
         <span style="display:flex;gap:6px;flex-wrap:wrap">${dl!=null?`<span class="tag">hace ${dl} d</span>`:""}${l.canal?`<span class="tag">${esc(l.canal)}</span>`:""}${due?`<span class="pill warn">seguir</span>`:""}${(l.contactos||[]).length>1?`<span class="tag">${l.contactos.length} contactos</span>`:""}${l.motivoPerdida?`<span class="tag">${esc(l.motivoPerdida)}</span>`:""}${l.reactivar&&l.reactivar<=today()?`<span class="pill lemon">reactivar</span>`:""}</span></div>`;}).join("")}${it.length>60?`<span class="muted" style="font-size:12px;padding:4px">+${it.length-60} más (usá la búsqueda)</span>`:""}</div>`;}).join("")}</div><div class="note">Ganados: últimos 30 días (después quedan en Clientes). Perdidos: últimos 90 días o con fecha de reactivación cumplida. Usá la búsqueda para ver todos.</div>`;
   } else {
-    const list=sortBy(cs,c=>c.fact,-1);
-    h+=`<div class="toolbar">${xbtn("clientes")}</div><div class="tablewrap"><table><thead><tr><th>Cliente</th><th>Estado</th><th>ICP</th><th class="r">Búsquedas</th><th class="r">Activas</th><th class="r">Facturado (US$ eq.)</th><th class="r">Ticket prom.</th><th>Propuesta / contrato</th><th>Fee acordado</th><th>Última búsqueda</th></tr></thead><tbody>
-    ${list.map(c=>`<tr class="click" data-act="openCliente" data-id="${esc(c.k)}"><td><b>${esc(c.nombre)}</b></td><td><span class="pill ${c.estado==="Activo"?"ok":c.estado==="Reciente"?"info":""}">${c.estado}</span></td><td>${esc(c.doc?.icp||"—")}</td><td class="r num">${c.total}</td><td class="r num">${c.act||"—"}</td><td class="r num">${usd(c.fact)}</td><td class="r num">${c.ticket?usd(c.ticket):"—"}</td><td>${docPill(c.nombre,c.act>0)}</td><td>${esc(c.doc?.feeAcordado||"—")}</td><td class="num">${fd(c.last)}</td></tr>`).join("")}
-    </tbody></table></div><div class="note">Facturado incluye facturas desde dic-2024 y montos históricos tomados de la planilla de Gestión Procesos. Convertido a dólares con el tipo de cambio del mes de emisión.</div>`;
+    // Clientes = empresas que nos abrieron al menos una búsqueda; el resto son leads
+    const conB=cs.filter(c=>c.total>0), sinB=cs.length-conB.length;
+    const SEG=[["","Todos",conB.length],["Activo","Búsquedas abiertas",conB.filter(c=>c.estado==="Activo").length],["Reciente","Activos (últimos 6 meses)",conB.filter(c=>c.estado==="Reciente").length],["Dormido","Inactivos",conB.filter(c=>c.estado==="Dormido").length]];
+    if(!SEG.some(x=>x[0]===(UI.cliSeg||""))) UI.cliSeg="";
+    const list=sortBy(conB.filter(c=>!UI.cliSeg||c.estado===UI.cliSeg),c=>c.estado==="Dormido"?(c.doc?.ultimoContacto||c.last||""):c.fact,-1);
+    const inac=UI.cliSeg==="Dormido";
+    h+=`<div class="toolbar"><div class="seg" role="group" aria-label="Segmento">${SEG.map(([v,l,n])=>`<button data-act="cliSeg" data-v="${v}" aria-pressed="${(UI.cliSeg||"")===v}">${l} <span class="muted num">${n}</span></button>`).join("")}</div>${xbtn("clientes")}</div><div class="tablewrap"><table><thead><tr><th>Cliente</th><th>Estado</th>${inac?`<th>Por qué</th><th>Último contacto</th>`:`<th>ICP</th>`}<th class="r">Búsquedas</th><th class="r">Activas</th><th class="r">Facturado (US$ eq.)</th><th class="r">Ticket prom.</th><th>Propuesta / contrato</th><th>Fee acordado</th><th>Última búsqueda</th></tr></thead><tbody>
+    ${list.map(c=>`<tr class="click" data-act="openCliente" data-id="${esc(c.k)}"><td><b>${esc(c.nombre)}</b></td><td><span class="pill ${c.estado==="Activo"?"ok":c.estado==="Reciente"?"info":""}">${ESTADO_CLI_LAB[c.estado]||c.estado}</span></td>${inac?`<td>${c.doc?.motivoInactivo?`${esc(c.doc.motivoInactivo)}${c.doc.detalleInactivo?`<div class="muted" style="font-size:12px">${esc(c.doc.detalleInactivo)}</div>`:""}`:'<span class="pill warn">Falta el motivo</span>'}</td><td class="num">${fd(c.doc?.ultimoContacto)||'<span class="muted">—</span>'}</td>`:`<td>${esc(c.doc?.icp||"—")}</td>`}<td class="r num">${c.total}</td><td class="r num">${c.act||"—"}</td><td class="r num">${usd(c.fact)}</td><td class="r num">${c.ticket?usd(c.ticket):"—"}</td><td>${docPill(c.nombre,c.act>0)}</td><td>${esc(c.doc?.feeAcordado||"—")}</td><td class="num">${fd(c.last)}</td></tr>`).join("")}
+    </tbody></table></div><div class="note">Clientes son las empresas que nos abrieron al menos una búsqueda: con búsquedas abiertas hoy, activas (abrieron una en los últimos 6 meses) o inactivas (hace más de 6 meses).${sinB?` Hay ${sinB} empresas cargadas como clientes sin ninguna búsqueda: seguilas como leads.`:""} En los inactivos, cargá en la ficha por qué y el último contacto. Facturado incluye facturas desde dic-2024 y montos históricos tomados de la planilla de Gestión Procesos. Convertido a dólares con el tipo de cambio del mes de emisión.</div>`;
   }
   return h;
 }
@@ -941,6 +972,8 @@ function drawerBusqueda(id){
     <label class="check full"><input id="b-ia" type="checkbox"${b.inicioAvance?" checked":""}> Tiene cobro de inicio y avance</label>
     ${farea("Estado actual","b-det",b.detalle)}${farea("Próximo paso","b-pp",b.proximoPaso)}
     ${farea("Notas","b-nota",b.nota)}
+    ${id&&(["Cancelada","Cerrada"].includes(b.estado)||b.fechaReapertura)?`${field("Reabierta el","b-fre",b.fechaReapertura,"date")}<div class="muted full" style="font-size:12.5px;align-self:end">Al pasar a Activa una búsqueda cancelada o cerrada, se reabre: los días y el time to fill cuentan desde esta fecha.</div>`:""}
+    ${farea("Job description","b-jd",b.jobDescription,"full")}
   </div>${datalist("dl-cli",clientNames())}`;
   if(canFin){
     body+=`<div class="section"><span class="label">Sueldo y fee de la búsqueda</span><div class="form">
@@ -955,6 +988,7 @@ function drawerBusqueda(id){
     ${funnelHTML(ps)}<div class="section"><span class="label">Bitácora semanal</span>${(b.bitacora||[]).length?`<div class="log">${sortBy(b.bitacora,x=>x.fecha,-1).map(x=>`<div><small>${fd(x.fecha)} · ${esc(authorName(x.autor))}</small>${esc(x.texto)}</div>`).join("")}</div>`:`<div class="muted" style="font-size:13px">Sin registros.</div>`}</div>`;
   }
   body+=minutasSection(b.minutas);
+  if(id) body+=archivosSection("busquedas",id);
   if(id) body+=histSection("busquedas",id);
   openDrawer(id?b.puesto:"Nueva búsqueda", id?`${esc(b.cliente)} · ${pillEstado(b.estado)}`:"", body, {save:{label:id?"Guardar cambios":"Crear búsqueda"}, del: id&&isAdmin?{label:"Eliminar"}:null, extra: id?`<button class="btn sm" data-act="repCliente" data-id="${id}">Reporte para el cliente</button>`:""});
   drawerSave.save.fn=async()=>{
@@ -968,7 +1002,13 @@ function drawerBusqueda(id){
     if(id && (det!==(b.detalle||"")||pp!==(b.proximoPaso||"")) && (det||pp)) bit.push({fecha:today(),texto:[det,pp].filter(Boolean).join(" · "),autor:me.id||""});
     const doc={...(id?b:{}),puesto,cliente,recruiter:gv("b-rec"),estado:gv("b-estado"),prioridad:gv("b-prio"),fechaInicio:gv("b-fi"),fechaPrimeraTerna:gv("b-ft"),
       fechaCierre:gv("b-fc"),fechaIngreso:gv("b-fing"),candidatoFinal:gv("b-cand"),finGarantia:gv("b-fg")||(gv("b-fing")?finGar(gv("b-fing")):""),garantia:gv("b-gar"),inicioAvance:gv("b-ia"),
-      detalle:det,proximoPaso:pp,nota:gv("b-nota"),bitacora:bit,minutas:flushMin(),actualizado:today()};
+      detalle:det,proximoPaso:pp,nota:gv("b-nota"),bitacora:bit,minutas:flushMin(),actualizado:today(),jobDescription:gv("b-jd")};
+    if($("#b-fre")) doc.fechaReapertura=gv("b-fre")||null;
+    // Reabrir: de Cancelada o Cerrada a Activa (o En pausa) arranca de nuevo el reloj
+    if(id&&["Cancelada","Cerrada"].includes(b.estado)&&["Activa","En pausa"].includes(doc.estado)){
+      doc.fechaReapertura=gv("b-fre")&&gv("b-fre")!==b.fechaReapertura?gv("b-fre"):today(); doc.fechaCierre=null;
+      bit.push({fecha:today(),texto:`Búsqueda reabierta (estaba ${b.estado.toLowerCase()}). El time to fill cuenta desde ${fd(doc.fechaReapertura)}.`,autor:me.id||""});
+    }
     if((doc.estado==="Cerrada"||doc.estado==="Cancelada")&&!doc.fechaCierre&&(!id||b.estado!==doc.estado)) doc.fechaCierre=today();
     delete doc.id;
     const nid=id||newId("b");
@@ -1013,29 +1053,34 @@ function drawerCandidato(id,{busquedaId}={}){
     ${fsel("Área","c-area",["","Comercial","Marketing","Finanzas","Operaciones","Producto","Tecnología","Diseño","People","Atención al cliente","Dirección"],c.area)}
     ${fsel("Seniority","c-sen",["","Jr","Ssr","Sr","Líder","Director/C-level"],c.seniority)}
     ${field("Pretensión salarial","c-pre",c.pretension)}${field("Etiquetas (separadas por coma)","c-tags",(c.tags||[]).join(", "))}
-    ${farea("Notas de entrevista","c-not",c.notas)}</div>`;
+    ${farea("Notas de entrevista","c-not",c.notas)}
+    ${farea("Informe del candidato","c-inf",c.informe)}<div class="muted full" style="font-size:12.5px;margin-top:-4px">El informe queda guardado acá para siempre. Pegalo (o el resumen de la minuta de Granola) antes de que Granola la borre, y adjuntá el CV abajo.</div></div>`;
   if(c.linkedin) body+=`<div><a class="btn sm" href="${esc(c.linkedin.startsWith("http")?c.linkedin:"https://"+c.linkedin)}" target="_blank" rel="noopener">Abrir LinkedIn</a></div>`;
-  if(busquedaId&&!id){ const b=S.busquedas[busquedaId]; body+=`<div class="note">Se suma a <b>${esc(b?.puesto)}</b> · ${esc(b?.cliente)} en etapa ${fsel("","c-etapa",ETAPAS.slice(0,7),"Sourcing")}</div>`; }
+  if(busquedaId&&!id){ const b=S.busquedas[busquedaId]; body+=`<div class="note">Se suma a <b>${esc(b?.puesto)}</b> · ${esc(b?.cliente)} en etapa ${fsel("","c-etapa",FUNNEL_E,"Sourcing")}</div>`; }
   if(id){
     body+=`<div class="section"><span class="label">Procesos (${ps.length})</span>${ps.length?`<div class="list">${ps.map(p=>{const b=S.busquedas[p.busquedaId]||{}; return `<div class="row"><div class="grow"><div><a href="#" data-act="openBusqueda" data-id="${p.busquedaId}">${esc(b.puesto||"Búsqueda")}</a></div><div class="muted">${esc(b.cliente||"")} · ${fd(p.fecha)}</div></div><select data-post="${p.id}" aria-label="Etapa">${opt(ETAPAS,p.etapa)}</select></div>`;}).join("")}</div>`:`<div class="muted" style="font-size:13px">No participó de procesos todavía.</div>`}
     <div class="toolbar"><select id="c-addb" aria-label="Búsqueda"><option value="">Sumar a una búsqueda activa…</option>${sortBy(activas(),b=>b.cliente).filter(b=>!ps.some(p=>p.busquedaId===b.id)).map(b=>`<option value="${b.id}">${esc(b.cliente)} · ${esc(b.puesto)}</option>`).join("")}</select><button class="btn sm" data-act="candToBusq" data-id="${id}">Sumar</button></div></div>`;
   }
+  if(id){ const fbs=ps.filter(p=>p.feedbackCliente); if(fbs.length) body+=`<div class="section"><span class="label">Opiniones de clientes</span>${fbs.map(p=>{ const b=S.busquedas[p.busquedaId]||{}; return `<div class="note"><b>${esc(b.cliente||"")} · ${esc(b.puesto||"")}</b><div style="white-space:pre-wrap;margin-top:4px">${esc(p.feedbackCliente)}</div></div>`; }).join("")}</div>`; }
   if(id) body+=archivosSection("candidatos",id);
   body+=minutasSection(c.minutas);
   if(id) body+=histSection("candidatos",id);
-  openDrawer(id?c.nombre:"Nuevo candidato", id?esc([c.rolActual,c.empresaActual].filter(Boolean).join(" · ")):"", body, {save:{label:id?"Guardar":"Crear candidato"}, del:id&&isAdmin?{label:"Eliminar"}:null});
+  if(!id) body+=`<div class="note">Tip para sourcing: pegá el link de LinkedIn primero y el nombre se completa solo. Con “Crear y cargar otro” seguís con el siguiente sin cerrar. Para varios de una, usá <b>Carga masiva</b> en el pipeline de la búsqueda.</div>`;
+  openDrawer(id?c.nombre:"Nuevo candidato", id?esc([c.rolActual,c.empresaActual].filter(Boolean).join(" · ")):"", body, {save:{label:id?"Guardar":"Crear candidato"}, del:id&&isAdmin?{label:"Eliminar"}:null, extra:id?"":`<button class="btn" data-act="candOtro">Crear y cargar otro</button>`});
+  const liIn=$("#c-li"); if(liIn) liIn.addEventListener("input",()=>{ const n=$("#c-nom"); if(n&&!n.value.trim()){ const nm=nombreDeLi(liIn.value); if(nm) n.value=nm; } });
   drawerSave.save.fn=async()=>{
     const nombre=gv("c-nom"); if(!nombre){toast("Falta el nombre.",true);return;}
     const li=gv("c-li");
     if(!id){ const dup=vals(S.candidatos).find(x=>keyN(x.nombre)===keyN(nombre)||(li&&x.linkedin&&keyN(x.linkedin)===keyN(li))||(gv("c-em")&&x.email&&x.email.trim().toLowerCase()===gv("c-em").toLowerCase()));
       if(dup&&!drawerSave.dupOk){ drawerSave.dupOk=true; toast(`Ya existe “${dup.nombre}”. Guardá de nuevo para crear igual.`,true); return; } }
     const doc={...(id?c:{}),nombre,linkedin:li,email:gv("c-em"),telefono:gv("c-tel"),ubicacion:gv("c-ub"),rolActual:gv("c-rol"),empresaActual:gv("c-emp"),
-      area:gv("c-area"),seniority:gv("c-sen"),pretension:gv("c-pre"),tags:gv("c-tags").split(",").map(t=>t.trim()).filter(Boolean),notas:gv("c-not"),minutas:flushMin(),creado:c.creado||today(),fuente:c.fuente||"Sistema"};
+      area:gv("c-area"),seniority:gv("c-sen"),pretension:gv("c-pre"),tags:gv("c-tags").split(",").map(t=>t.trim()).filter(Boolean),notas:gv("c-not"),informe:gv("c-inf"),minutas:flushMin(),creado:c.creado||today(),fuente:c.fuente||"Sistema"};
     delete doc.id;
     const cid=id||newId("c");
     if(!await write("candidatos/"+cid,doc)) return;
     if(!id&&busquedaId){ await write("postulaciones/"+newId("p"),{busquedaId,candidatoId:cid,etapa:gv("c-etapa")||"Sourcing",motivo:"",fecha:today(),notas:""}); }
-    toast(id?"Candidato actualizado":"Candidato creado"); closeDrawer();
+    toast(id?"Candidato actualizado":"Candidato creado");
+    if(!id&&drawerSave.otro){ drawerCandidato(null,{busquedaId}); setTimeout(()=>$("#c-li")?.focus(),50); } else closeDrawer();
   };
   if(drawerSave.del) drawerSave.del.fn=async()=>{ if(drawerSave.del.armed){ for(const p of postsOfCand(id)) await write("postulaciones/"+p.id,null,"delete"); if(await write("candidatos/"+id,null,"delete")){toast("Candidato eliminado");closeDrawer();} } else { drawerSave.del.armed=true; $("[data-act=drawerDel]").textContent="Confirmar: eliminar"; } };
 }
@@ -1045,13 +1090,53 @@ function drawerAddPost(bid){
   const opts=sortBy(vals(S.candidatos).filter(c=>!existing.has(c.id)),c=>c.nombre);
   const body=`<div class="note">Elegí alguien de la base o creá un candidato nuevo.</div>
     <div class="form"><div class="f full"><label for="ap-c">Candidato de la base</label><input id="ap-c" type="text" list="dl-cands" placeholder="Escribí el nombre"></div>
-    ${fsel("Etapa","ap-e",ETAPAS.slice(0,7),"Sourcing")}${field("Nota","ap-n","")}</div>${datalist("dl-cands",opts.map(c=>c.nombre+(c.rolActual?" — "+c.rolActual:"")))}`;
+    ${fsel("Etapa","ap-e",FUNNEL_E,"Sourcing")}${field("Nota","ap-n","")}</div>${datalist("dl-cands",opts.map(c=>c.nombre+(c.rolActual?" — "+c.rolActual:"")))}`;
   openDrawer("Sumar candidato",`${esc(b.puesto)} · ${esc(b.cliente)}`,body,{save:{label:"Sumar al pipeline"},extra:`<button class="btn" data-act="newCandFor" data-id="${bid}">Crear candidato nuevo</button>`});
   drawerSave.save.fn=async()=>{
     const v=gv("ap-c"); const nm=v.split(" — ")[0].trim();
     const c=opts.find(x=>keyN(x.nombre)===keyN(nm));
     if(!c){ toast("No está en la base. Usá “Crear candidato nuevo”.",true); return; }
     if(await write("postulaciones/"+newId("p"),{busquedaId:bid,candidatoId:c.id,etapa:gv("ap-e"),motivo:"",fecha:today(),notas:gv("ap-n")})){ toast("Candidato sumado"); closeDrawer(); }
+  };
+}
+
+// ---- carga masiva al pipeline: pegar una lista (de LinkedIn, Excel o notas de sourcing) ----
+const normLi = u => String(u||"").toLowerCase().replace(/^https?:\/\/(www\.)?/,"").replace(/[?#].*$/,"").replace(/\/+$/,"");
+const nombreDeLi = u => { const m=/linkedin\.com\/in\/([^/?#]+)/i.exec(u||""); if(!m) return ""; return decodeURIComponent(m[1]).split("-").filter(w=>w&&!/\d/.test(w)).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ").trim(); };
+// Candidato que ya está en la base: mismo LinkedIn, mismo email o mismo nombre
+function candExistente(x){ return vals(S.candidatos).find(c=>(x.linkedin&&c.linkedin&&normLi(c.linkedin)===normLi(x.linkedin))||(x.email&&c.email&&c.email.toLowerCase()===x.email.toLowerCase())||(x.nombre&&keyN(c.nombre)===keyN(x.nombre))); }
+function parseLista(txt){
+  return String(txt||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{
+    const partes=l.split(/\t|;|,(?=(?:[^"]*"[^"]*")*[^"]*$)|\s+\|\s+/).map(x=>x.trim().replace(/^"|"$/g,"")).filter(Boolean);
+    const x={nombre:"",rolActual:"",empresaActual:"",linkedin:"",email:"",telefono:""}; const resto=[];
+    partes.forEach(t=>{ if(/linkedin\.com\//i.test(t)) x.linkedin=t.startsWith("http")?t:"https://"+t; else if(/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(t)) x.email=t; else if(/^\+?[\d\s().-]{8,}$/.test(t)) x.telefono=t; else resto.push(t); });
+    [x.nombre,x.rolActual,x.empresaActual]=[resto[0]||"",resto[1]||"",resto[2]||""];
+    if(!x.nombre&&x.linkedin) x.nombre=nombreDeLi(x.linkedin);
+    return x;
+  }).filter(x=>x.nombre);
+}
+function drawerCargaMasiva(bid,txt){
+  const b=S.busquedas[bid]; if(!b) return;
+  const lista=parseLista(txt), enBusq=new Set(postsOf(bid).map(p=>p.candidatoId));
+  const filas=lista.map(x=>{ const c=candExistente(x); return {...x,existe:c||null,yaEsta:!!(c&&enBusq.has(c.id))}; });
+  const nuevos=filas.filter(x=>!x.existe).length, aSumar=filas.filter(x=>!x.yaEsta).length;
+  const body=`<div class="note">Pegá una persona por renglón. Sirve una lista de links de LinkedIn, o columnas copiadas de Excel o Google Sheets en este orden: <b>nombre, rol, empresa</b>, y opcionalmente LinkedIn, email o teléfono en cualquier columna. Si la persona ya está en la base, no se duplica: se suma la misma ficha.</div>
+    <div class="form">${farea("Lista","cm-txt",txt||"")}${fsel("Etapa en la que entran","cm-e",FUNNEL_E,UI.cmEtapa||"Sourcing")}<div class="f"><label>&nbsp;</label><button class="btn" data-act="cmPrevia" data-id="${bid}">Ver cómo queda</button></div></div>
+    ${filas.length?`<div class="section"><span class="label">${filas.length} personas · ${nuevos} nuevas en la base · ${aSumar} se suman a esta búsqueda</span><div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Rol · empresa</th><th>Contacto</th><th></th></tr></thead><tbody>
+      ${filas.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td class="muted">${esc([x.rolActual,x.empresaActual].filter(Boolean).join(" · ")||"—")}</td><td class="muted">${esc([x.linkedin?"LinkedIn":"",x.email,x.telefono].filter(Boolean).join(" · ")||"—")}</td><td>${x.yaEsta?'<span class="pill">Ya está en la búsqueda</span>':x.existe?'<span class="pill info">Ya en la base</span>':'<span class="pill ok">Nuevo</span>'}</td></tr>`).join("")}</tbody></table></div></div>`:""}`;
+  openDrawer("Carga masiva al pipeline",`${esc(b.puesto)} · ${esc(b.cliente)}`,body,{save:{label:aSumar?`Cargar ${aSumar} al pipeline`:"Cargar"}});
+  drawerSave.save.fn=async()=>{
+    const filas2=parseLista(gv("cm-txt")).map(x=>({...x,existe:candExistente(x)}));
+    if(!filas2.length){ toast("Pegá al menos una persona.",true); return; }
+    const etapa=gv("cm-e"); UI.cmEtapa=etapa; let creados=0, sumados=0;
+    const ya=new Set(postsOf(bid).map(p=>p.candidatoId));
+    for(const x of filas2){
+      let cid=x.existe&&x.existe.id;
+      if(!cid){ cid=newId("c"); const {existe,...datos}=x; if(!await write("candidatos/"+cid,{...datos,fuente:x.linkedin?"LinkedIn":"Carga masiva",creado:today(),tags:[]})) return; creados++; }
+      if(ya.has(cid)) continue; ya.add(cid);
+      if(!await write("postulaciones/"+newId("p"),{busquedaId:bid,candidatoId:cid,etapa,motivo:"",fecha:today(),notas:""})) return; sumados++;
+    }
+    toast(`Listo: ${sumados} sumados al pipeline${creados?` (${creados} nuevos en la base)`:""}`); closeDrawer();
   };
 }
 
@@ -1110,21 +1195,23 @@ function drawerCliente(k){
   const body=`<div class="form">${field("Nombre","cl-nom",c.nombre,"text","full")}
     ${fsel("ICP","cl-icp",["",...((S.equipo&&S.equipo.icps)||["Scale Up Nativa","Growth Consolidado","Creativas Ágiles","LATAM Talent Hub","Early stage"])],c.icp)}${field("Fee acordado","cl-fee",c.feeAcordado)}
     ${fsel("Origen","cl-ori",["",...ORIGENES_LEAD,"Lead ganado"],c.origen)}
-    ${farea("Contactos (uno por línea: nombre · cargo · mail)","cl-con",c.contactos)}${farea("Notas","cl-not",c.notas)}</div>
+    ${farea("Contactos (uno por línea: nombre · cargo · mail)","cl-con",c.contactos)}${farea("Notas","cl-not",c.notas)}
+    ${field("Último contacto","cl-uc",c.ultimoContacto,"date")}<div></div>
+    ${!st||st.estado==="Dormido"||c.motivoInactivo?`${fsel("Por qué no nos abre búsquedas","cl-mi",["",...MOTIVOS_INACTIVO],c.motivoInactivo)}${field("Detalle","cl-di",c.detalleInactivo)}`:""}</div>
     ${docsSection(c.nombre||"")}
-    ${st?`<div class="kpis">${kpi("Estado",st.estado,st.act?"tiene búsquedas abiertas":st.estado==="Reciente"?"búsqueda en los últimos 6 meses":"sin búsquedas hace más de 6 meses")}${kpi("Búsquedas",st.total,`${st.cerradas} cerradas · ${st.act} activas`)}${kpi("Facturado",usd(st.fact),"US$ eq.")}</div>`:""}
+    ${st?`<div class="kpis">${kpi("Estado",{Activo:"Activo",Reciente:"Activo",Dormido:"Inactivo"}[st.estado]||st.estado,st.act?"tiene búsquedas abiertas":st.estado==="Reciente"?"búsqueda en los últimos 6 meses":"sin búsquedas hace más de 6 meses")}${kpi("Búsquedas",st.total,`${st.cerradas} cerradas · ${st.act} activas`)}${kpi("Facturado",usd(st.fact),"US$ eq.")}</div>`:""}
     ${c.id||st?`<div class="section"><div class="panel-head"><span class="label">Oportunidades (nuevas búsquedas en conversación)</span></div>
       ${ops.length?`<div class="list">${sortBy(ops,o=>o.fecha||"",-1).map(o=>`<div class="row"><div class="grow"><b>${esc(o.puesto)}</b><div class="muted">${fd(o.fecha)}${o.notas?" · "+esc(o.notas):""}</div></div><span class="pill ${o.estado==="Abierta"?"lemon":o.estado==="Convertida"?"ok":""}">${esc(o.estado)}</span>${o.estado==="Abierta"?`<button class="btn sm" data-act="opConvertir" data-id="${esc(o.id)}">Abrir búsqueda</button><button class="btn sm ghost" data-act="opPerder" data-id="${esc(o.id)}">Perdida</button>`:""}</div>`).join("")}</div>`:`<div class="muted" style="font-size:13px">Sin oportunidades abiertas.</div>`}
       <div class="toolbar"><input id="op-p" type="text" placeholder="Puesto que están evaluando" style="flex:1;min-width:160px"><input id="op-n" type="text" placeholder="Notas (opcional)" style="flex:1;min-width:140px"><button class="btn sm" data-act="opAdd">Agregar oportunidad</button></div></div>`:""}
     ${minutasSection(c.minutas)}
     ${st?`<div class="section"><span class="label">Búsquedas</span><div class="list">${sortBy(st.bus,b=>b.fechaInicio||"",-1).map(b=>`<div class="row"><div class="grow"><div><a href="#" data-act="openBusqueda" data-id="${b.id}">${esc(b.puesto)}</a></div><div class="muted">${fd(b.fechaInicio)} · ${esc(b.recruiter||"")}</div></div>${pillEstado(b.estado)}</div>`).join("")||'<div class="muted">Sin búsquedas.</div>'}</div></div>`:""}`;
-  openDrawer(c.nombre||"Nuevo cliente",st?st.estado:"",body,{save:{label:"Guardar"}});
+  openDrawer(c.nombre||"Nuevo cliente",st?(ESTADO_CLI_LAB[st.estado]||st.estado):"",body,{save:{label:"Guardar"}});
   const did=c.id||("cl-"+keyN(c.nombre||"").slice(0,40));
   drawerSave.cliente={did,doc:c,k};
   drawerSave.save.fn=async()=>{
     const nombre=gv("cl-nom"); if(!nombre){toast("Falta el nombre.",true);return;}
     const id2=c.id||("cl-"+keyN(nombre).slice(0,40));
-    const doc={...c,nombre,icp:gv("cl-icp"),feeAcordado:gv("cl-fee"),origen:gv("cl-ori"),contactos:gv("cl-con"),notas:gv("cl-not"),minutas:flushMin(),oportunidades:(S.clientes[id2]||c).oportunidades||ops}; delete doc.id;
+    const doc={...c,nombre,icp:gv("cl-icp"),feeAcordado:gv("cl-fee"),origen:gv("cl-ori"),contactos:gv("cl-con"),notas:gv("cl-not"),ultimoContacto:gv("cl-uc")||null,...($("#cl-mi")?{motivoInactivo:gv("cl-mi"),detalleInactivo:gv("cl-di")}:{}),minutas:flushMin(),oportunidades:(S.clientes[id2]||c).oportunidades||ops}; delete doc.id;
     if(c.id&&c.nombre&&c.nombre!==nombre){ try{ const r=await api("/api/clientes/renombrar",{method:"POST",body:JSON.stringify({de:c.nombre,a:nombre})}); toast(`Renombrado también en ${r.cambios.busquedas} búsquedas, ${r.cambios.facturas} facturas y ${r.cambios.leads} leads`); refresh("busquedas"); refresh("facturas"); refresh("leads"); }catch(e){ if(e.code!==401) toast(e.message||"No se pudo renombrar.",true); return; } }
     if(await write("clientes/"+id2,doc)){toast("Cliente guardado");closeDrawer();}
   };
@@ -1149,7 +1236,7 @@ function drawerFactura(id,{bid}={}){
   if(!f) return;
   const recs=recruiters().map(r=>r.nombre); if(f.recruiter&&!recs.includes(f.recruiter)) recs.push(f.recruiter);
   const bus=sortBy(B(),x=>x.fechaInicio||"",-1).slice(0,150);
-  const body=`<div class="form">
+  let body=`<div class="form">
     ${fdl("Cliente","fc-cli",f.cliente,"dl-cli")}${fsel("Búsqueda","fc-bid",[{v:"",l:"Sin vincular"},...bus.map(x=>({v:x.id,l:`${x.cliente} · ${x.puesto}`}))],f.busquedaId)}
     ${field("Concepto","fc-con",f.concepto,"text","full")}
     ${fsel("Tipo","fc-tipo",TIPOS_FC,f.tipo)}${fsel("Emitida por","fc-emi",EMISORES,f.emisor)}
@@ -1161,6 +1248,7 @@ function drawerFactura(id,{bid}={}){
     ${farea("Comentarios","fc-txt",f.comentarios)}</div>${datalist("dl-cli",clientNames())}
     <div><button class="btn sm" data-act="calcCom">Calcular comisión con el % de la recruiter</button></div>
     ${f.historico?`<div class="note">Registro histórico importado de la planilla de Gestión Procesos.</div>`:""}`;
+  body+=id?archivosSection("facturas",id):`<div class="note">Después de registrarla vas a poder adjuntar el PDF de la factura.</div>`;
   openDrawer(id?`${f.concepto}`:"Nueva factura",id?`${esc(f.cliente)} · ${money(f.monto,f.moneda)}`:"",body,{save:{label:id?"Guardar":"Registrar factura"},del:id?{label:"Eliminar"}:null});
   drawerSave.save.fn=async()=>{
     const monto=gn("fc-mon"); let cli=gv("fc-cli"); if(!monto||!cli){toast("Completá cliente y monto.",true);return;}
@@ -1171,7 +1259,8 @@ function drawerFactura(id,{bid}={}){
       fechaEmision:gv("fc-fe"),fechaPagoEstimada:gv("fc-fp"),cobrada:cob,fechaCobro:gv("fc-fcob")||(cob?today():""),recruiter:gv("fc-rec"),comision:gn("fc-com")||0,
       monedaComision:gv("fc-cmnd"),comisionPagada:gv("fc-cpag"),fechaPagoComision:gv("fc-fpc")||(gv("fc-cpag")&&!f.comisionPagada?today():(f.fechaPagoComision||"")),comentarios:gv("fc-txt"),historico:!!f.historico};
     delete doc.id;
-    if(await write("facturas/"+(id||newId("f")),doc)){toast(id?"Factura actualizada":"Factura registrada");closeDrawer();}
+    const fid=id||newId("f");
+    if(await write("facturas/"+fid,doc)){ if(id){ toast("Factura actualizada"); closeDrawer(); } else { toast("Factura registrada: ahora podés adjuntar el PDF"); drawerFactura(fid); } }
   };
   if(drawerSave.del) drawerSave.del.fn=async()=>{ if(drawerSave.del.armed){ if(await write("facturas/"+id,null,"delete")){toast("Factura eliminada");closeDrawer();} } else { drawerSave.del.armed=true; $("[data-act=drawerDel]").textContent="Confirmar: eliminar"; } };
 }
@@ -1223,6 +1312,10 @@ document.addEventListener("click",async e=>{
     case "openCandidato": drawerCandidato(id); if(id){ cargarArchivos("candidatos",id); cargarHistSection("candidatos",id); } break;
     case "newCandFor": drawerCandidato(null,{busquedaId:id}); break;
     case "addPost": drawerAddPost(id); break;
+    case "candOtro": if(drawerSave&&drawerSave.save){ drawerSave.otro=true; await drawerSave.save.fn(); if(drawerSave) drawerSave.otro=false; } break;
+    case "cliSeg": UI.cliSeg=v||""; render(); break;
+    case "cargaMasiva": drawerCargaMasiva(id,""); break;
+    case "cmPrevia": UI.cmEtapa=gv("cm-e"); drawerCargaMasiva(id,gv("cm-txt")); break;
     case "candToBusq": { const bid=gv("c-addb"); if(!bid){toast("Elegí una búsqueda.",true);break;} if(await write("postulaciones/"+newId("p"),{busquedaId:bid,candidatoId:id,etapa:"Sourcing",motivo:"",fecha:today(),notas:""})){toast("Sumado a la búsqueda"); drawerCandidato(id);} break; }
     case "newLead": drawerLead(null); break;
     case "openLead": drawerLead(id); break;
@@ -1450,14 +1543,14 @@ function propDatos(p){
   const d=p.datos||{}; const ks=sortBy(Object.keys(d).filter(k=>d[k]!==""&&d[k]!=null&&!(p.fuente==="Cliente"&&k==="fecha")),k=>k==="_decision"?0:1);
   if(!ks.length) return "";
   // Opinión que dejó el cliente en su link: decisión y comentario en palabras, no nombres de campo
-  const LAB_CLI={_decision:"Decisión del cliente",motivoDetalle:"Comentario del cliente",etapa:"Etapa al aprobar",motivo:"Motivo de descarte"};
+  const LAB_CLI={_decision:"Decisión del cliente",_autor:"Quién opinó",motivoDetalle:"Comentario del cliente",etapa:"Etapa al aprobar",motivo:"Motivo de descarte"};
   return `<div class="tablewrap" style="margin-top:8px"><table><tbody>${ks.map(k=>{
     if(k==="_decision") return `<tr><td class="muted" style="width:34%">${LAB_CLI._decision}</td><td><span class="pill ${d[k]==="no"?"crit":"ok"}">${d[k]==="no"?"No avanzar":"Me interesa"}</span></td></tr>`;
     const v=d[k]; const cur=p.registroId&&p.op==="actualizar"? (S[RES_KEY[p.coleccion]]||{})[p.registroId]?.[k] : undefined;
     const show=x=> typeof x==="boolean"?(x?"Sí":"No"): typeof x==="object"?JSON.stringify(x): String(x);
     const fmtV = k==="url" ? `<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(show(v));
     return `<tr><td class="muted" style="width:34%">${esc(p.fuente==="Cliente"&&LAB_CLI[k]?LAB_CLI[k]:humanKey(k))}</td><td>${cur!==undefined&&cur!==null&&cur!==""?`<span class="muted" style="text-decoration:line-through">${esc(show(cur))}</span> → `:""}<b>${fmtV}</b></td></tr>`;
-  }).join("")}</tbody></table></div>`;
+  }).join("")}${p.fuente==="Cliente"&&p.evidencia&&!d.motivoDetalle?`<tr><td class="muted" style="width:34%">Comentario del cliente</td><td><b>“${esc(p.evidencia)}”</b></td></tr>`:""}</tbody></table></div>`;
 }
 function propBanner(){
   if(!canFin) return "";
@@ -1572,7 +1665,7 @@ function wkData(){
   const cerradas=B().filter(b=>b.estado==="Cerrada"&&inRange(b.fechaCierre,r));
   const canceladas=B().filter(b=>b.estado==="Cancelada"&&inRange(b.fechaCierre,r));
   const notas=b=>(b.bitacora||[]).filter(x=>inRange(x.fecha,r));
-  const presentados=vals(S.postulaciones).filter(p=>inRange(p.fecha,r)&&["Presentado","Entrevista cliente","Oferta","Contratado"].includes(p.etapa));
+  const presentados=vals(S.postulaciones).filter(p=>inRange(p.fecha,r)&&["Presentado","Entrevista cliente","Ejercicio técnico","Oferta","Contratado"].includes(p.etapa));
   return {r,activasSem,nuevas,cerradas,canceladas,notas,presentados};
 }
 // ================= INICIO: Hoy + el weekly (Números, Búsquedas, Comercial) =================
@@ -1630,7 +1723,7 @@ function wkBusquedas(D){
     <div class="tablewrap"><table><thead><tr><th>Búsqueda</th><th>Prio.</th><th class="r">Días</th><th>Pipeline</th><th style="width:38%">Avance de la semana</th><th>Próximo paso</th><th></th></tr></thead><tbody>
     ${rows.map(b=>{ const n=D.notas(b); const d=days(b.fechaInicio,esActual?today():r.e);
       const ps=postsOf(b.id); const st={}; ps.forEach(p=>st[p.etapa]=(st[p.etapa]||0)+1);
-      const pipe=["Presentado","Entrevista cliente","Oferta"].filter(e=>st[e]).map(e=>`<span class="tag">${e==="Entrevista cliente"?"Ent. cliente":e} ${st[e]}</span>`).join(" ")||`<span class="muted">${ps.length?ps.length+" en proceso":"—"}</span>`;
+      const pipe=["Presentado","Entrevista cliente","Ejercicio técnico","Oferta"].filter(e=>st[e]).map(e=>`<span class="tag">${e==="Entrevista cliente"?"Ent. cliente":e==="Ejercicio técnico"?"Ejercicio":e} ${st[e]}</span>`).join(" ")||`<span class="muted">${ps.length?ps.length+" en proceso":"—"}</span>`;
       const av=n.length? n.map(x=>`<div>${esc(sinPP(x.texto,b.proximoPaso))}<div class="muted" style="font-size:11.5px">${fd(x.fecha)} · ${esc(authorName(x.autor))}</div></div>`).join("") : `<span class="pill warn">Sin avance cargado</span>`;
       return `<tr><td><b>${esc(b.puesto)}</b><div class="muted">${esc(b.cliente)}${b.estado==="En pausa"?" · En pausa":""}</div></td><td>${esc((b.prioridad||"").split(" ")[0]||"—")}</td><td class="r num"><span class="pill ${ageSev(d)} plain">${d??"—"}</span></td><td>${pipe}</td><td>${av}</td><td>${esc(b.proximoPaso||"—")}</td>
       <td style="white-space:nowrap">${esActual?`<button class="btn sm" data-act="weeklyUpdate" data-id="${b.id}">Actualizar</button>`:`<button class="btn sm ghost" data-act="openBusqueda" data-id="${b.id}">Abrir</button>`}</td></tr>`; }).join("")}
@@ -1716,14 +1809,14 @@ const xbtn = (k,label="Descargar Excel") => `<button class="btn sm ghost" data-a
 function datosExport(k){
   if(k==="busquedas"){ let list=B(); if(UI.bEstado!=="Todas") list=list.filter(b=>b.estado===UI.bEstado); if(UI.bRec) list=list.filter(b=>b.recruiter===UI.bRec); if(UI.bCli) list=list.filter(b=>b.cliente===UI.bCli);
     if(UI.bQ){ const q=keyN(UI.bQ); list=list.filter(b=>keyN([b.puesto,b.cliente,b.candidatoFinal,b.recruiter].join(" ")).includes(q)); }
-    return sortBy(list,b=>b.fechaInicio||"",-1).map(b=>{ const ps=postsOf(b.id); const row={Puesto:b.puesto,Cliente:b.cliente,Recruiter:b.recruiter||"",Estado:b.estado,Prioridad:b.prioridad||"","Fecha inicio":b.fechaInicio||"","Primera terna":b.fechaPrimeraTerna||"","Fecha cierre":b.fechaCierre||"","Días":b.estado==="Activa"?days(b.fechaInicio):ttf(b),"Candidatos en pipeline":ps.length,"Presentados o más":ps.filter(p=>ETAPAS.indexOf(p.etapa)>=3&&p.etapa!=="Descartado").length,"Candidato final":b.candidatoFinal||"","Estado actual":b.detalle||"","Próximo paso":b.proximoPaso||""};
+    return sortBy(list,b=>b.fechaInicio||"",-1).map(b=>{ const ps=postsOf(b.id); const row={Puesto:b.puesto,Cliente:b.cliente,Recruiter:b.recruiter||"",Estado:b.estado,Prioridad:b.prioridad||"","Fecha inicio":b.fechaInicio||"","Primera terna":b.fechaPrimeraTerna||"","Fecha cierre":b.fechaCierre||"","Días":b.estado==="Activa"?days(inicioEf(b)):ttf(b),"Candidatos en pipeline":ps.length,"Presentados o más":ps.filter(p=>ETAPAS.indexOf(p.etapa)>=3&&p.etapa!=="Descartado").length,"Candidato final":b.candidatoFinal||"","Estado actual":b.detalle||"","Próximo paso":b.proximoPaso||""};
       if(canFin){ const f=S.fin[b.id]||{}; row["Sueldo ARS"]=f.sueldoBrutoARS??""; row["Fee (× sueldo)"]=f.feeMultiplo??""; row["Fee estimado ARS"]=f.feeEstimadoARS??""; } return row; }); }
   if(k==="candidatos"){ let list=vals(S.candidatos); if(UI.cQ){ const q=keyN(UI.cQ); list=list.filter(c=>keyN([c.nombre,c.rolActual,c.empresaActual,c.area,c.seniority,(c.tags||[]).join(" "),c.notas].join(" ")).includes(q)); }
     return sortBy(list,c=>c.creado||"",-1).map(c=>({Nombre:c.nombre,Email:c.email||"",Teléfono:c.telefono||"",LinkedIn:c.linkedin||"",Ubicación:c.ubicacion||"","Rol actual":c.rolActual||"","Empresa actual":c.empresaActual||"",Área:c.area||"",Seniority:c.seniority||"",Pretensión:c.pretension||"",Etiquetas:(c.tags||[]).join(", "),Procesos:postsOfCand(c.id).length,Alta:c.creado||"",Notas:c.notas||""})); }
   if(k==="pipeline"){ const b=S.busquedas[UI.cBusq]; return sortBy(postsOf(UI.cBusq),p=>ETAPAS.indexOf(p.etapa)).map(p=>{const c=S.candidatos[p.candidatoId]||{}; return {Búsqueda:b?.puesto||"",Cliente:b?.cliente||"",Candidato:c.nombre||"",Etapa:p.etapa,Fecha:p.fecha||"","Rol actual":c.rolActual||"",Empresa:c.empresaActual||"",Email:c.email||"",Teléfono:c.telefono||"",LinkedIn:c.linkedin||"",Notas:p.notas||""};}); }
   if(k==="leads"){ let list=vals(S.leads); if(UI.lQ){const q=keyN(UI.lQ); list=list.filter(l=>keyN([l.empresa,l.contacto,l.cargo,l.notas].join(" ")).includes(q));}
     return sortBy(list,l=>l.fechaUltimoContacto||l.fechaPrimerContacto||"",-1).map(l=>({Empresa:l.empresa,Contacto:l.contacto||"",Cargo:l.cargo||"",LinkedIn:l.linkedin||"",Origen:l.origen||"",Canal:l.canal||"",Etapa:l.etapa,"Motivo pérdida":l.motivoPerdida||"",Reactivar:l.reactivar||"",Contactos:(l.contactos||[]).map(c=>[c.nombre,c.cargo,c.email||c.linkedin].filter(Boolean).join(" - ")).join(" | "),"Primer contacto":l.fechaPrimerContacto||"","Último contacto":l.fechaUltimoContacto||"","Próximo seguimiento":l.proximoSeguimiento||"",ICP:l.icp||"",Fee:l.fee||"",Notas:l.notas||""})); }
-  if(k==="clientes") return sortBy(clienteStats(),c=>c.fact,-1).map(c=>({Cliente:c.nombre,Estado:c.estado,ICP:c.doc?.icp||"",Búsquedas:c.total,Activas:c.act,Cerradas:c.cerradas,"Facturado US$ eq.":Math.round(c.fact),"Ticket prom. US$":c.ticket?Math.round(c.ticket):"","Propuesta / contrato":docsCliente(c.nombre).map(a=>a.etiqueta||"Documento").join(", ")||"Falta","Fee acordado":c.doc?.feeAcordado||"","Primera búsqueda":c.first,"Última búsqueda":c.last,Contactos:c.doc?.contactos||""}));
+  if(k==="clientes") return sortBy(clienteStats(),c=>c.fact,-1).map(c=>({Cliente:c.nombre,Estado:ESTADO_CLI_LAB[c.estado]||c.estado,ICP:c.doc?.icp||"",Búsquedas:c.total,Activas:c.act,Cerradas:c.cerradas,"Facturado US$ eq.":Math.round(c.fact),"Ticket prom. US$":c.ticket?Math.round(c.ticket):"","Propuesta / contrato":docsCliente(c.nombre).map(a=>a.etiqueta||"Documento").join(", ")||"Falta","Fee acordado":c.doc?.feeAcordado||"","Primera búsqueda":c.first,"Última búsqueda":c.last,Contactos:c.doc?.contactos||""}));
   if(k==="facturas"){ const F=vals(S.facturas); let list=UI.fTab==="pendientes"?F.filter(f=>!f.cobrada):UI.fTab==="comisiones"?F.filter(f=>!f.comisionPagada&&f.comision>0):UI.fTab==="cobradas"?F.filter(f=>f.cobrada):F;
     return sortBy(list,f=>f.fechaEmision||"",-1).map(f=>({Emisión:f.fechaEmision||"",Cliente:f.cliente||"",Concepto:f.concepto||"",Tipo:f.tipo||"",Emisor:f.emisor||"",Moneda:f.moneda||"",Monto:f.monto??"","Monto US$ eq.":Math.round(fcUSD(f)),Cobrada:f.cobrada?"Sí":"No","Fecha cobro":f.fechaCobro||"","Días sin cobrar":f.cobrada?"":days(f.fechaEmision),Recruiter:f.recruiter||"",Comisión:f.comision??"","Moneda comisión":f.monedaComision||"","Comisión pagada":f.comision?(f.comisionPagada?"Sí":"No"):"",Histórica:f.historico?"Sí":"",Comentarios:f.comentarios||""})); }
   if(k==="weekly"){ const D=wkData(); const {r}=D; let act=D.activasSem; if(UI.wkRec) act=act.filter(b=>b.recruiter===UI.wkRec);
@@ -1766,7 +1859,7 @@ function drawerRepCliente(id){
   openDrawer("Reporte para el cliente",`${esc(b.puesto)} · ${esc(b.cliente)}`,body,{save:{label:"Generar PDF"}});
   drawerSave.save.fn=async()=>{
     const sel=elegibles.filter((p,i)=>gv("rc-c-"+i));
-    const d=b.estado==="Activa"?days(b.fechaInicio):ttf(b);
+    const d=b.estado==="Activa"?days(inicioEf(b)):ttf(b);
     const cont={}; ps.forEach(p=>cont[p.etapa]=(cont[p.etapa]||0)+1);
     const evaluados=ps.length, entrevistados=ps.filter(p=>ETAPAS.indexOf(p.etapa)>=2&&p.etapa!=="Descartado").length+ (cont["Descartado"]||0);
     let html=`<p class="muted">${esc(b.cliente)} · Recruiter: ${esc(b.recruiter||"Lemon Talent")}</p>
@@ -1818,7 +1911,7 @@ function repMensual(k){
 // ---- Funnel ----
 // Cuenta cuántos candidatos llegaron a cada etapa (incluye a los descartados hasta la etapa en la que quedaron afuera)
 function funnelData(ps){
-  const etapas=ETAPAS.slice(0,7);
+  const etapas=FUNNEL_E;
   return {total:ps.length, desc:ps.filter(p=>p.etapa==="Descartado").length, filas:etapas.map((e,i)=>({e,n:ps.filter(p=>alcance(p)>=i).length}))};
 }
 function funnelHTML(ps,titulo="Funnel del proceso"){
@@ -1884,10 +1977,10 @@ function backupDriveLinea(){ const b=S.backupDrive; if(b===undefined) return "";
 async function cargarBackupDrive(){ try{ S.backupDrive=await api("/api/backup/drive"); schedule(); }catch(e){} }
 
 // ---- Archivos adjuntos (CV) ----
-function archivosSection(col,id){ setTimeout(()=>cargarArchivos(col,id),0); return `<div class="section"><div class="panel-head"><span class="label">Archivos (CV y otros)</span><label class="btn sm" style="cursor:pointer">Adjuntar<input type="file" data-upload="${col}" data-id="${esc(id)}" hidden accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"></label></div><div id="arch-${esc(id)}" class="list"><div class="muted" style="font-size:13px">Cargando…</div></div></div>`; }
+function archivosSection(col,id){ setTimeout(()=>cargarArchivos(col,id),0); return `<div class="section"><div class="panel-head"><span class="label">${{facturas:"Archivo de la factura",busquedas:"Archivos (job description y otros)",candidatos:"Archivos (CV, informe y otros)"}[col]||"Archivos"}</span><label class="btn sm" style="cursor:pointer">Adjuntar<input type="file" data-upload="${col}" data-id="${esc(id)}" hidden accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"></label></div><div id="arch-${esc(id)}" class="list"><div class="muted" style="font-size:13px">Cargando…</div></div></div>`; }
 async function cargarArchivos(col,id){ const el=document.getElementById("arch-"+id); if(!el) return;
   try{ const rows=await api(`/api/archivos?coleccion=${col}&registro=${encodeURIComponent(id)}`); const el2=document.getElementById("arch-"+id); if(!el2) return;
-    el2.innerHTML=rows.length?rows.map(a=>`<div class="row"><div class="grow"><a href="/api/archivos/${a.id}?ver=1" target="_blank" rel="noopener">${esc(a.nombre)}</a><div class="muted" style="font-size:12px">${Math.max(1,Math.round(a.tamano/1024))} KB · ${new Date(a.fecha).toLocaleDateString("es-AR")} · ${esc(authorName(a.usuarioId))}</div></div><a class="btn sm ghost" href="/api/archivos/${a.id}" download>Descargar</a><button class="btn sm ghost" data-act="archDel" data-id="${a.id}" data-col="${col}" data-reg="${esc(id)}">Quitar</button></div>`).join(""):`<div class="muted" style="font-size:13px">Sin archivos. Adjuntá el CV en PDF o Word (hasta 8 MB).</div>`; }catch(e){ el.innerHTML=""; } }
+    el2.innerHTML=rows.length?rows.map(a=>`<div class="row"><div class="grow"><a href="/api/archivos/${a.id}?ver=1" target="_blank" rel="noopener">${esc(a.nombre)}</a><div class="muted" style="font-size:12px">${Math.max(1,Math.round(a.tamano/1024))} KB · ${new Date(a.fecha).toLocaleDateString("es-AR")} · ${esc(authorName(a.usuarioId))}</div></div><a class="btn sm ghost" href="/api/archivos/${a.id}" download>Descargar</a><button class="btn sm ghost" data-act="archDel" data-id="${a.id}" data-col="${col}" data-reg="${esc(id)}">Quitar</button></div>`).join(""):`<div class="muted" style="font-size:13px">Sin archivos. ${{facturas:"Adjuntá el PDF de la factura",busquedas:"Adjuntá la job description u otros documentos",candidatos:"Adjuntá el CV o el informe"}[col]||"Adjuntá un archivo"} (PDF, Word o imagen, hasta 8 MB).</div>`; }catch(e){ el.innerHTML=""; } }
 document.addEventListener("change",async e=>{ const el=e.target; if(!el.dataset||!el.dataset.upload) return; const f=el.files&&el.files[0]; if(!f) return;
   if(f.size>8*1024*1024){ toast("El archivo supera los 8 MB.",true); return; }
   const b64=await new Promise((ok,ko)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=ko; r.readAsDataURL(f); });
@@ -1935,13 +2028,21 @@ function wkComData(r){
   for(const [t,arr] of [["ganado",ganados],["perdido",perdidos],["propuesta",propuestas],["nuevo",nuevos]]) for(const l of arr) if(!vistos.has(l.id)){ vistos.add(l.id); movs.push([t,l]); }
   return {nuevos,movidos,propuestas,ganados,perdidos,seguir,emit,cob,vencidas,movs,abiertos:L.filter(abierto).length};
 }
+// Oportunidades abiertas (nuevas búsquedas en conversación con clientes): en Búsquedas y en Inicio › Comercial
+function opsPanel(){
+  const ops=vals(S.clientes).flatMap(c=>(c.oportunidades||[]).filter(o=>o.estado==="Abierta").map(o=>({...o,cliente:c.nombre,k:keyN(c.nombre)})));
+  if(!ops.length) return "";
+  return `<section class="panel"><div class="panel-head"><h2>Oportunidades abiertas</h2><span class="muted">${ops.length} posibles búsquedas en conversación</span></div><div class="list">
+    ${sortBy(ops,o=>o.fecha||"",-1).map(o=>`<div class="row"><div class="grow"><b>${esc(o.puesto)}</b> · ${esc(o.cliente)}<div class="muted">${o.fecha?`desde ${fd(o.fecha)}`:""}${o.notas?" · "+esc(o.notas):""}</div></div><button class="btn sm" data-act="openCliente" data-id="${esc(o.k)}">Abrir para convertir</button></div>`).join("")}
+  </div></section>`;
+}
 function wkComercial(D){
   if(!canFin) return "";
   const {r}=D; const C=wkComData(r);
   const leadRow=(l,extra="")=>`<div class="row" data-act="openLead" data-id="${l.id}" style="cursor:pointer"><div class="grow"><b>${esc(l.empresa)}</b>${l.contacto?` · ${esc(l.contacto)}`:""}<div class="muted">${esc(l.etapa)}${extra}</div></div><button class="btn sm ghost" data-act="openLead" data-id="${l.id}">Abrir</button></div>`;
   const ETQ={nuevo:["Nuevo","lemon"],propuesta:["Propuesta","info"],ganado:["Ganado","ok"],perdido:["Perdido","crit"]};
   const venc=C.seguir.filter(l=>l.proximoSeguimiento<today());
-  return `<div class="toolbar"><span class="chip"><b>${C.abiertos}</b> leads abiertos</span><span class="chip"><b>${C.nuevos.length}</b> nuevos</span><span class="chip"><b>${C.propuestas.length}</b> propuestas</span><span class="chip"><b>${C.ganados.length}</b> ganados · <b>${C.perdidos.length}</b> perdidos</span>${venc.length?`<span class="chip warn"><b>${venc.length}</b> seguimientos vencidos</span>`:""}<a class="btn sm ghost" href="#crm">Ir a Clientes y leads</a></div>
+  return opsPanel()+`<div class="toolbar"><span class="chip"><b>${C.abiertos}</b> leads abiertos</span><span class="chip"><b>${C.nuevos.length}</b> nuevos</span><span class="chip"><b>${C.propuestas.length}</b> propuestas</span><span class="chip"><b>${C.ganados.length}</b> ganados · <b>${C.perdidos.length}</b> perdidos</span>${venc.length?`<span class="chip warn"><b>${venc.length}</b> seguimientos vencidos</span>`:""}<a class="btn sm ghost" href="#crm">Ir a Clientes y leads</a></div>
   <div class="grid2">
   <section class="panel"><div class="panel-head"><h2>Movimientos de la semana</h2></div><div class="list">${C.movs.map(([t,l])=>`<div class="row" data-act="openLead" data-id="${l.id}" style="cursor:pointer"><span class="pill ${ETQ[t][1]}">${ETQ[t][0]}</span><div class="grow"><b>${esc(l.empresa)}</b>${l.contacto?` · ${esc(l.contacto)}`:""}<div class="muted">${esc(l.etapa)}</div></div></div>`).join("")||`<div class="empty">Sin movimientos comerciales cargados esta semana.</div>`}</div></section>
   <section class="panel"><div class="panel-head"><h2>Seguimientos</h2><span class="muted">vencidos y próximos 7 días</span></div><div class="list">${C.seguir.length?C.seguir.slice(0,15).map(l=>leadRow(l,` · ${l.proximoSeguimiento<today()?`<span class="pill crit">vencido ${fd(l.proximoSeguimiento)}</span>`:`seguir ${fd(l.proximoSeguimiento)}`}`)).join(""):`<div class="empty">No hay seguimientos pendientes.</div>`}</div></section>
@@ -2008,7 +2109,7 @@ function scMetricas(){
     {l:"Búsquedas cerradas con éxito",dir:1,f:r=>BB.filter(b=>b.estado==="Cerrada"&&inRange(b.fechaCierre,r)).length},
     {l:"Búsquedas canceladas",dir:-1,f:r=>BB.filter(b=>b.estado==="Cancelada"&&inRange(b.fechaCierre,r)).length},
     {l:"Tiempo de cierre (días)",dir:-1,obj:()=>o.timeToFillDias,f:r=>{const a=BB.filter(b=>b.estado==="Cerrada"&&inRange(b.fechaCierre,r)).map(ttf).filter(x=>x!=null); return a.length?Math.round(avg(a)):null;},n:"promedio de las cerradas en el período"},
-    {l:"Candidatos presentados",dir:1,f:r=>P.filter(p=>inRange(p.fecha,r)&&["Presentado","Entrevista cliente","Oferta","Contratado"].includes(p.etapa)).length,n:"aprox."},
+    {l:"Candidatos presentados",dir:1,f:r=>P.filter(p=>inRange(p.fecha,r)&&["Presentado","Entrevista cliente","Ejercicio técnico","Oferta","Contratado"].includes(p.etapa)).length,n:"aprox."},
     {l:"Reemplazos por garantía",dir:-1,f:r=>BB.filter(b=>b.garantia&&inRange(b.fechaInicio,r)).length},
     {l:"Antigüedad promedio de las abiertas (días)",dir:-1,f:r=>{const a=BB.filter(b=>vivaAl(b,r.e)).map(b=>days(b.fechaInicio,r.e)); return a.length?Math.round(avg(a)):null;}},
     {l:"Abiertas hace más de 30 días",dir:-1,f:r=>BB.filter(b=>vivaAl(b,r.e)&&days(b.fechaInicio,r.e)>30).length},
@@ -2040,7 +2141,7 @@ function scMetricas(){
     "Búsquedas cerradas con éxito":r=>BB.filter(b=>b.estado==="Cerrada"&&inRange(b.fechaCierre,r)).map(b=>IB(b,b.candidatoFinal?"ingresó "+b.candidatoFinal:"")),
     "Búsquedas canceladas":r=>BB.filter(b=>b.estado==="Cancelada"&&inRange(b.fechaCierre,r)).map(b=>IB(b)),
     "Tiempo de cierre (días)":r=>sortBy(BB.filter(b=>b.estado==="Cerrada"&&inRange(b.fechaCierre,r)&&ttf(b)!=null),b=>-ttf(b)).map(b=>IB(b,`${ttf(b)} días`)),
-    "Candidatos presentados":r=>P.filter(p=>inRange(p.fecha,r)&&["Presentado","Entrevista cliente","Oferta","Contratado"].includes(p.etapa)).map(IP),
+    "Candidatos presentados":r=>P.filter(p=>inRange(p.fecha,r)&&["Presentado","Entrevista cliente","Ejercicio técnico","Oferta","Contratado"].includes(p.etapa)).map(IP),
     "Reemplazos por garantía":r=>BB.filter(b=>b.garantia&&inRange(b.fechaInicio,r)).map(b=>IB(b)),
     "Antigüedad promedio de las abiertas (días)":r=>sortBy(vivas(r),b=>b.fechaInicio||"").map(b=>IB(b,`${days(b.fechaInicio,r.e)} días`)),
     "Abiertas hace más de 30 días":r=>sortBy(vivas(r).filter(b=>days(b.fechaInicio,r.e)>30),b=>b.fechaInicio||"").map(b=>IB(b,`${days(b.fechaInicio,r.e)} días`)),

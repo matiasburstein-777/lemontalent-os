@@ -40,7 +40,7 @@ const VISIBLE = {
   recruiter: ["busquedas", "candidatos", "postulaciones", "feedback"],
   admin: ["busquedas", "candidatos", "postulaciones", "feedback", "busquedasFin", "facturas", "clientes", "leads", "gastos", "gastosRecurrentes"],
 };
-const ADJUNTOS = { candidatos: "recruiter", busquedas: "recruiter", clientes: "admin", leads: "admin" };
+const ADJUNTOS = { candidatos: "recruiter", busquedas: "recruiter", clientes: "admin", leads: "admin", facturas: "admin" };
 const MAX_ARCHIVO = 8 * 1024 * 1024;
 
 const corto = (v) => {

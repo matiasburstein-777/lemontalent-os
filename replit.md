@@ -108,6 +108,19 @@ Los pedidos están en la pantalla "Pedidos de mejora" (tabla `feedback`). Al ter
 - Lo corre un **Scheduled Deployment** de Replit: `node scripts/backup-drive.js`, todos los días a las 3:00 (Buenos Aires). También: botón "Subir a Drive ahora" (admins) y `POST /api/ingest/backup-drive` (con `INGEST_TOKEN`).
 - Secretos: `GOOGLE_SA_JSON`, `BACKUP_DRIVE_FOLDER_ID` (ID de la carpeta) y `BACKUP_DRIVE_USER` (usuario @lemontalent.com dueño de la carpeta; la cuenta de servicio lo impersona con el scope `https://www.googleapis.com/auth/drive`). Si la carpeta está en una unidad compartida donde la cuenta de servicio es miembro, `BACKUP_DRIVE_USER` no hace falta.
 
+## Pedidos del equipo (oct-2026)
+
+- Etapa **Ejercicio técnico** entre *Entrevista cliente* y *Oferta* (`ETAPAS` en `public/app.js` y `server/seguimiento.js`; `FUNNEL_E`/`FUNNEL` = todas menos Descartado). No usar índices fijos de etapas: comparar con `ETAPAS.indexOf`.
+- Búsquedas: `jobDescription` (texto) y archivos adjuntos; `fechaReapertura` al pasar una búsqueda Cancelada/Cerrada a Activa (se limpia `fechaCierre` y queda en la bitácora). `inicioEf(b)` = reapertura o inicio: lo usan días en curso, TTF (`ttf`) y el semáforo. La lista muestra "días abierta" o "días de TTF" (`tiempoB`).
+- Pipeline: **Carga masiva** (pegar una lista de LinkedIn o columnas de Excel: nombre, rol, empresa, contacto); no duplica candidatos (LinkedIn, email o nombre).
+- Candidatos: campo `informe` (queda fijo; Granola gratis borra las minutas a los 30 días), autocompletar el nombre desde el link de LinkedIn, "Crear y cargar otro". Filtros por búsqueda, etapa, área y seniority en la lista.
+- Link del cliente: el mensaje y los próximos pasos ya no se copian de la weekly; el cliente puede dejar su nombre al opinar (`_autor`). Al aprobar la opinión en la Bandeja queda escrita en `postulaciones.feedbackCliente` (se ve en la ficha del candidato y en el pipeline).
+- Facturas: se puede adjuntar el PDF (archivos, colección `facturas`, solo admins).
+- Inicio › Hoy: grupo **Ingresos** con los candidatos que empiezan en los próximos 14 días (`fechaIngreso`).
+- Clientes = empresas con al menos una búsqueda, en segmentos: búsquedas abiertas, activos (búsqueda en los últimos 6 meses) e inactivos. Los inactivos llevan `motivoInactivo` (lista fija `MOTIVOS_INACTIVO`), `detalleInactivo` y `ultimoContacto`.
+- Oportunidades abiertas de los clientes se ven en Búsquedas y en Inicio › Comercial.
+- El digest recibe `reglas.instrucciones` para completar email/teléfono de candidatos desde Calendar o chats, armar el `informe` desde Granola y detectar ejercicios técnicos.
+
 ## Seguridad del acceso (`server/seguridad.js`)
 
 - Login: 5 intentos fallidos con el mismo email desde la misma IP en 15 minutos bloquean ese par 15 minutos (respuesta 429). Al entrar, la sesión se regenera.
