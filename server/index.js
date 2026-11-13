@@ -21,9 +21,13 @@ import { normalizarVinculos, migrarIntegridad } from "./integridad.js";
 import { registerMail } from "./mail.js";
 import { registerMcp, migrarMcp } from "./mcp.js";
 import { registerSeguridad, migrarSeguridad, headersSeguridad, bloqueado, anotarFallo, limpiarFallos, registrarAcceso, cerrarSesiones } from "./seguridad.js";
+import { AREAS, SENIORITIES } from "../shared/profile-options.js";
+import { registerNormalizarBase } from "./normalizar-base.js";
+import { ejecutarLimpiezaUnicaProduccion } from "./limpieza-unica-produccion.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.get("/profile-options.js", (_req, res) => res.sendFile(path.join(__dirname, "../shared/profile-options.js")));
 app.set("trust proxy", 1);
 app.use(headersSeguridad);
 app.use(express.json({ limit: "12mb" }));
@@ -237,6 +241,7 @@ const ops = {
     const r = recurso(user, nombre, true);
     const cols = getTableColumns(r.t);
     const vals = clean(r.t, body || {}); delete vals[r.pk];
+    if (nombre === "candidatos") validarCatalogosCandidato(vals);
     if (nombre === "feedback" && !vals.autorId) vals.autorId = user.id;
     await normalizarVinculos(pool, nombre, vals);
     const antes = await HX.leer(r, id);
@@ -252,6 +257,7 @@ const ops = {
     const r = recurso(user, nombre, true);
     const cols = getTableColumns(r.t);
     const vals = clean(r.t, body || {}); delete vals[r.pk];
+    if (nombre === "candidatos") validarCatalogosCandidato(vals);
     if (nombre === "postulaciones") delete vals.etapas;
     if (!Object.keys(vals).length) return;
     await normalizarVinculos(pool, nombre, vals);
@@ -271,9 +277,14 @@ const ops = {
     if (antes) await HX.registrar(user, nombre, id, "borrar", antes, null);
   },
 };
+function validarCatalogosCandidato(vals) {
+  if (Object.hasOwn(vals, "area") && vals.area && !AREAS.includes(vals.area)) throw new ErrorApi(400, "Área inválida. Elegí una opción de la lista.");
+  if (Object.hasOwn(vals, "seniority") && vals.seniority && !SENIORITIES.includes(vals.seniority)) throw new ErrorApi(400, "Seniority inválido. Elegí una opción de la lista.");
+}
 const fallo = (res, next) => (e) => (e instanceof ErrorApi ? res.status(e.status).json({ error: e.message }) : next(e));
 
 registerMcp(app, { pool, R, RANK, rank, ops, ErrorApi, newId, publicUser, auth });
+registerNormalizarBase(app, { pool, auth });
 
 app.get("/api/:res", auth(), (req, res, next) => {
   ops.listar(req.user, req.params.res).then((rows) => res.json(rows), fallo(res, next));
@@ -316,4 +327,5 @@ migrarSeguridad(pool).catch((e) => console.error("No se pudo preparar el registr
   .then(() => migrarMcp(pool)).catch((e) => console.error("No se pudieron preparar los tokens del MCP:", e.message))
   .then(() => migrarGastos(pool)).catch((e) => console.error("No se pudieron preparar los gastos:", e.message))
   .then(bootstrapAdmin).catch((e) => console.error("No se pudo crear el usuario inicial:", e.message))
+  .then(() => ejecutarLimpiezaUnicaProduccion(pool)).catch((e) => console.error("[limpieza puntual producción] error inesperado:", e.message))
   .finally(() => app.listen(PORT, "0.0.0.0", () => console.log(`Lemon Talent OS en puerto ${PORT}`)));

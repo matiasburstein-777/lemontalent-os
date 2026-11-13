@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "0Tx9G3WFYDpFmpiq3RL1V"
+uri = "file://backups/os-import-pre-2026-10-05T15-06-02-707Z.json"
+type = "unspecified"
+title = "Respaldo previo a la importación"
+description = "Copia JSON de candidatos, postulaciones, búsquedas y clientes creada antes de aplicar la importación."
+logical_id = "f045b7bf-8aaa-4a59-a725-a7ecf4e2a3a8"
+content_hash = "sha256:f13d111174ddb9c4ad444dbccff8ab0629e47d665d2aa47945dc881bc5157b9c"
+size = 271874
+mtime_ms = 1791212762706
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:91eb32cb-48f8-40a2-a1ce-a35a78c2e232/f045b7bf-8aaa-4a59-a725-a7ecf4e2a3a8/2fadf7cc-25b0-4ed6-9154-ac683de0a046"
+storage_version_token = "1791213049715735"
+content_type = "application/octet-stream"

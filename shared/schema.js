@@ -37,6 +37,9 @@ export const busquedas = pgTable("busquedas", {
   actualizado: d("actualizado"),
   fechaReapertura: d("fecha_reapertura"), // si se reabrió una búsqueda cancelada o cerrada: el TTF cuenta desde acá
   jobDescription: text("job_description"),
+  area: text("area"),
+  seniority: text("seniority"),
+  seguimientoIngresoHecho: boolean("seguimiento_ingreso_hecho"),
 });
 
 // Datos de dinero de cada búsqueda: separados para que las recruiters no los vean.
@@ -71,6 +74,9 @@ export const candidatos = pgTable("candidatos", {
   fuente: text("fuente"),
   creado: d("creado"),
   informe: text("informe"), // informe del candidato (queda fijo; las minutas de Granola gratis se borran a los 30 días)
+  estadoRelacion: text("estado_relacion"),
+  interesantePara: jsonb("interesante_para"),
+  revisarEn: d("revisar_en"),
 });
 
 // Candidato x búsqueda (pipeline)

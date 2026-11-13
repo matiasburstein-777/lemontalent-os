@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import { getTableColumns } from "drizzle-orm";
 import { ETAPAS, hoyBA } from "./seguimiento.js";
 import { keyN } from "./integridad.js";
+import { AREAS, SENIORITIES, FUENTES_CANDIDATO, ESTADOS_RELACION } from "../shared/profile-options.js";
 
 const VERSIONES = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const PREFIJO = { busquedas: "b", candidatos: "c", postulaciones: "p", feedback: "fb", facturas: "f", clientes: "cl", leads: "l", gastos: "g", gastosRecurrentes: "r" };
@@ -30,6 +31,12 @@ const VALORES = {
   "facturas.tipo": ["Inicio y avance", "Cierre", "50% anticipo", "Cancelación"],
   "feedback.estado": ["Pendiente", "En curso", "Hecho", "Descartado"],
   "feedback.tipo": ["Error", "Mejora", "Idea"],
+  "candidatos.area": AREAS,
+  "candidatos.seniority": SENIORITIES,
+  "candidatos.fuente": FUENTES_CANDIDATO,
+  "candidatos.estadoRelacion": ESTADOS_RELACION,
+  "busquedas.area": AREAS,
+  "busquedas.seniority": SENIORITIES,
 };
 
 const INSTRUCCIONES = `Lemon Talent OS: sistema interno de Lemon Talent (consultora de recruiting en Argentina).

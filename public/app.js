@@ -1,4 +1,5 @@
 "use strict";
+import { AREAS, SENIORITIES, FUENTES_CANDIDATO, ESTADOS_RELACION } from "/profile-options.js";
 // ---------- constants ----------
 const ETAPAS = ["Sourcing","Contactado","Entrevista LT","Presentado","Entrevista cliente","Ejercicio técnico","Oferta","Contratado","Descartado"];
 const FUNNEL_E = ETAPAS.filter(e=>e!=="Descartado"); // etapas que suman al avance (todas menos Descartado)
@@ -19,7 +20,7 @@ const S = {busquedas:{},candidatos:{},postulaciones:{},equipo:null,facturas:{},f
 const loaded = {};
 let me = {id:null}, isAdmin = false, canFin = false, isAdm = false; // isAdmin = canFin = admin (acceso total); isAdm queda siempre false (rol unificado)
 let view = "panel";
-const UI = {bEstado:"Activa",bRec:"",bCli:"",bQ:"",bMode:"cards",cTab:"base",cBusq:"",cQ:"",crmTab:"leads",lQ:"",fTab:"pendientes",ecoYear:new Date().getFullYear()};
+const UI = {bEstado:"Activa",bRec:"",bCli:"",bQ:"",bMode:"cards",cTab:"base",cBusq:"",cQ:"",cR:"",crmTab:"leads",lQ:"",fTab:"pendientes",ecoYear:new Date().getFullYear()};
 let names = {};
 
 // ---------- utils ----------
@@ -274,6 +275,9 @@ function vPanel(){
     if(mot.length){ const t=mot.join(" · "); att.push({sev,g:"Búsquedas",t:`${b.puesto} · ${b.cliente}`,d:t[0].toUpperCase()+t.slice(1)+(b.recruiter?` · ${b.recruiter}`:""),act:"openBusqueda",id:b.id}); } });
   // Ingresos: el día que empieza un candidato (desde hoy hasta 14 días adelante)
   B().filter(b=>b.fechaIngreso&&days(today(),b.fechaIngreso)>=0&&days(today(),b.fechaIngreso)<=14).forEach(b=>{ const n=days(today(),b.fechaIngreso); att.push({sev:n<=1?"ok":"info",lab:n===0?"Hoy":n===1?"Mañana":"Ingreso",g:"Ingresos",t:`${b.candidatoFinal||"Nuevo ingreso"} · ${b.cliente}`,d:`Empieza ${n===0?"hoy":n===1?"mañana":"el "+fd(b.fechaIngreso)} como ${b.puesto}`,act:"openBusqueda",id:b.id}); });
+  vals(S.candidatos).filter(c=>c.revisarEn&&c.revisarEn<=today()).forEach(c=>att.push({sev:"warn",g:"Revisar",t:`Revisar a ${c.nombre}`,d:`Fecha de revisión: ${fd(c.revisarEn)}`,act:"openCandidato",id:c.id,review:true}));
+  const fechaMasUnMes=iso=>{const [y,m,d]=iso.split("-").map(Number);return new Date(Date.UTC(y,m,Math.min(d,new Date(Date.UTC(y,m+1,0)).getUTCDate()))).toISOString().slice(0,10);};
+  B().filter(b=>b.fechaIngreso&&!b.seguimientoIngresoHecho&&fechaMasUnMes(b.fechaIngreso)<=today()).forEach(b=>{const cl=vals(S.clientes).find(c=>keyN(c.nombre)===keyN(b.cliente));att.push({sev:"warn",g:"Ingresos",t:`Seguimiento al mes · ${b.candidatoFinal||"Candidato"}`,d:`${b.cliente} · ${b.puesto}${cl?.contactos?` · Contacto: ${cl.contactos}`:""}`,act:"openBusqueda",id:b.id,seguimientoMes:true});});
   B().filter(b=>b.finGarantia&&days(today(),b.finGarantia)>=0&&days(today(),b.finGarantia)<=30).forEach(b=>att.push({sev:"info",g:"Garantías",t:`${b.candidatoFinal||b.puesto} · ${b.cliente}`,d:`Garantía vence ${fd(b.finGarantia)}`,act:"openBusqueda",id:b.id}));
   if(canFin){
     vals(S.facturas).filter(f=>!f.cobrada&&days(f.fechaEmision)>30).forEach(f=>att.push({sev:"crit",g:"Cobros",t:`Cobrar ${money(f.monto,f.moneda)} · ${f.cliente}`,d:`Emitida hace ${days(f.fechaEmision)} días`,act:"openFactura",id:f.id}));
@@ -283,7 +287,7 @@ function vPanel(){
   const grupos=uniq(att.map(a=>a.g)); UI.attG=grupos.includes(UI.attG)?UI.attG:"";
   const lista=sortBy(att.filter(a=>!UI.attG||a.g===UI.attG),a=>order[a.sev]);
   const filtros=grupos.length>1?`<div class="seg" role="group" aria-label="Filtrar"><button data-act="attG" data-v="" aria-pressed="${!UI.attG}">Todo <span class="muted num">${att.length}</span></button>${grupos.map(g=>`<button data-act="attG" data-v="${esc(g)}" aria-pressed="${UI.attG===g}">${esc(g)} <span class="muted num">${att.filter(a=>a.g===g).length}</span></button>`).join("")}</div>`:"";
-  const fila=a=>`<div class="row"><div class="grow"><div><b>${esc(a.t)}</b></div><div class="muted">${esc(a.d)}</div></div><span class="pill ${a.sev}">${a.lab||(a.sev==="crit"?"Urgente":a.sev==="warn"?"Revisar":"Próximo")}</span><button class="btn sm" data-act="${a.act}" data-id="${esc(a.id)}">Abrir</button></div>`;
+  const fila=a=>`<div class="row"><div class="grow"><div><b>${esc(a.t)}</b></div><div class="muted">${esc(a.d)}</div></div><span class="pill ${a.sev}">${a.lab||(a.sev==="crit"?"Urgente":a.sev==="warn"?"Revisar":"Próximo")}</span>${a.review?`<button class="btn sm" data-act="posponerRevision" data-id="${esc(a.id)}">Posponer 7 días</button><button class="btn sm ghost" data-act="limpiarRevision" data-id="${esc(a.id)}">Limpiar</button><button class="btn sm ghost" data-act="openCandidato" data-id="${esc(a.id)}">Abrir</button>`:a.seguimientoMes?`<button class="btn sm" data-act="marcarSeguimientoIngreso" data-id="${esc(a.id)}">Marcar hecho</button><button class="btn sm ghost" data-act="openBusqueda" data-id="${esc(a.id)}">Abrir</button>`:`<button class="btn sm" data-act="${a.act}" data-id="${esc(a.id)}">Abrir</button>`}</div>`;
   const attH=lista.length? lista.slice(0,10).map(fila).join("")+(lista.length>10?`<details class="more"><summary>Ver ${lista.length-10} más</summary>${lista.slice(10).map(fila).join("")}</details>`:"") : `<div class="empty">Nada pendiente. Todas las búsquedas activas tienen novedades de esta semana.</div>`;
   let cal="";
   if(canFin){ const q=calidadDatos(); if(q.length) cal=`<div class="note" style="margin-top:10px">${q.length} puntos de calidad de datos para revisar. <a href="#calidad">Ver calidad de datos</a></div>`; }
@@ -372,19 +376,21 @@ function vCandidatos(){
     if(UI.cE) list=list.filter(c=>enB?enB[c.id]&&enB[c.id].etapa===UI.cE:postsOfCand(c.id).some(p=>p.etapa===UI.cE));
     if(UI.cA) list=list.filter(c=>c.area===UI.cA);
     if(UI.cS) list=list.filter(c=>c.seniority===UI.cS);
+    if(UI.cR) list=list.filter(c=>c.estadoRelacion===UI.cR);
     list=enB?sortBy(list,c=>ETAPAS.indexOf(enB[c.id].etapa)):sortBy(list,c=>c.creado||"",-1);
     const bOpts=[...sortBy(activas(),b=>b.cliente),...sortBy(B().filter(b=>b.estado!=="Activa"),b=>b.fechaInicio||"",-1)];
     const areas=uniq(vals(S.candidatos).map(c=>c.area).filter(Boolean)).sort(), sens=uniq(vals(S.candidatos).map(c=>c.seniority).filter(Boolean)).sort();
     h+=`<div class="toolbar"><input id="q-c" type="search" placeholder="Buscar por nombre, rol, empresa, etiqueta, notas o informe" data-ui="cQ" value="${esc(UI.cQ)}" style="flex:1;min-width:220px">
       <select data-ui="cB" aria-label="Búsqueda"><option value="">Todas las búsquedas</option>${bOpts.map(b=>`<option value="${b.id}"${b.id===UI.cB?" selected":""}>${esc(b.cliente)} · ${esc(b.puesto)}${b.estado!=="Activa"?` (${b.estado.toLowerCase()})`:""}</option>`).join("")}</select>
       <select data-ui="cE" aria-label="Etapa"><option value="">Todas las etapas</option>${opt(ETAPAS,UI.cE)}</select>
-      ${areas.length?`<select data-ui="cA" aria-label="Área"><option value="">Todas las áreas</option>${opt(areas,UI.cA)}</select>`:""}
-      ${sens.length?`<select data-ui="cS" aria-label="Seniority"><option value="">Todo seniority</option>${opt(sens,UI.cS)}</select>`:""}
+      <select data-ui="cA" aria-label="Área"><option value="">Todas las áreas</option>${opt(AREAS,UI.cA)}</select>
+      <select data-ui="cS" aria-label="Seniority"><option value="">Todo seniority</option>${opt(SENIORITIES,UI.cS)}</select>
+      <select data-ui="cR" aria-label="Estado de relación"><option value="">Cualquier estado de relación</option>${opt(ESTADOS_RELACION,UI.cR)}</select>
       <span class="muted">${list.length} candidatos</span>${xbtn("candidatos")}</div>
     ${UI.cB?`<div class="note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Mostrando el pipeline de <b>${esc(S.busquedas[UI.cB].puesto)} · ${esc(S.busquedas[UI.cB].cliente)}</b> ordenado por etapa.<button class="btn sm" data-act="openBusqueda" data-id="${UI.cB}">Ver la búsqueda</button><button class="btn sm" data-act="cargaMasiva" data-id="${UI.cB}">Carga masiva</button></div>`:""}`;
-    h+= list.length? `<div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Rol / empresa</th><th>Área · seniority</th><th>Procesos</th><th>Etiquetas</th></tr></thead><tbody>
+    h+= list.length? `<div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Rol / empresa</th><th>Área · seniority</th><th>Relación</th><th>Procesos</th><th>Etiquetas</th></tr></thead><tbody>
       ${list.slice(0,400).map(c=>{const ps=postsOfCand(c.id); const last=sortBy(ps,p=>p.fecha||"",-1)[0];
-        return `<tr class="click" data-act="openCandidato" data-id="${c.id}"><td><b>${esc(c.nombre)}</b>${c.linkedin?`<div class="muted" style="font-size:12px">LinkedIn</div>`:""}</td><td>${esc(c.rolActual||"—")}<div class="muted">${esc(c.empresaActual||"")}</div></td><td>${esc([c.area,c.seniority].filter(Boolean).join(" · ")||"—")}</td><td>${enB?pillEtapa(enB[c.id].etapa):`${ps.length} ${last?pillEtapa(last.etapa):""}`}</td><td>${(c.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(" ")}</td></tr>`;}).join("")}
+        return `<tr class="click" data-act="openCandidato" data-id="${c.id}"><td><b>${esc(c.nombre)}</b>${c.linkedin?`<div class="muted" style="font-size:12px">LinkedIn</div>`:""}</td><td>${esc(c.rolActual||"—")}<div class="muted">${esc(c.empresaActual||"")}</div></td><td>${esc([c.area,c.seniority].filter(Boolean).join(" · ")||"—")}</td><td>${esc(c.estadoRelacion||"—")}</td><td>${enB?pillEtapa(enB[c.id].etapa):`${ps.length} ${last?pillEtapa(last.etapa):""}`}</td><td>${(c.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(" ")}</td></tr>`;}).join("")}
     </tbody></table></div>` : `<div class="empty">Sin resultados.</div>`;
   }
   return h;
@@ -836,14 +842,23 @@ function vEconomicsAdm({y,years,ms,P,sum,ing,F,cierres,inicio,cerr,canc,abiertas
 // ================= CONFIGURACIÓN =================
 // Una sola sección con pestañas; cada rol ve las suyas. Las rutas viejas (#historial, #calidad…) abren la pestaña que corresponde.
 const CONFIG_VIEWS=["config"];
+const NORM_LABELS={areaSeniority:"Área y Seniority",fuente:"Fuente",etiquetas:"Etiquetas",basura:"Candidatos que no son personas",relacion:"Estado de relación"};
+function vNormalizarBase(){
+  if(me.rol!=="admin") return `<section class="panel"><h2>Sin acceso</h2><p>Esta acción está disponible solo para administradores.</p></section>`;
+  const p=UI.normPreview;
+  if(UI.normResult) return `<section class="panel"><h2>Normalización aplicada</h2><p>Respaldo guardado antes de los cambios (${UI.normResult.backupDisponible?"disponible":"no disponible"}).</p><div class="list">${Object.entries(NORM_LABELS).map(([k,l])=>`<div class="row"><b class="grow">${l}</b><span>${UI.normResult.counts?.[k]||0} cambios</span></div>`).join("")}</div><a class="btn sm" href="/api/admin/normalizar-base/backup">Descargar respaldo JSON de candidatos</a>${UI.normResult.manuales?.length?`<h3 style="margin-top:16px">Revisar a mano (tienen postulaciones)</h3><div class="list">${UI.normResult.manuales.map(x=>`<div class="row">${esc(x.nombre)} · ${x.postulaciones} postulaciones</div>`).join("")}</div>`:""}</section>`;
+  if(!p) return `<section class="panel"><h2>Normalizar base</h2><p>Primero genera una vista previa sin escribir. Al aplicar, se guarda un respaldo JSON completo de candidatos y luego se ejecutan solo los grupos seleccionados.</p><button class="btn lemon" data-act="normalizarPreview">Generar vista previa</button></section>`;
+  const groups=Object.entries(NORM_LABELS).map(([k,label])=>{const rows=p.groups?.[k]||[];return `<section class="panel"><div class="panel-head"><h2>${label} · ${rows.length}</h2><label class="check"><input type="checkbox" data-norm-group="${k}"${UI.normSelected?.includes(k)?" checked":""}> Aplicar grupo</label></div>${rows.length?`<div class="tablewrap"><table><thead><tr><th>Candidato</th><th>Valor actual</th><th>Valor nuevo</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.nombre)} <span class="muted">${esc(x.id)}</span></td><td>${esc(JSON.stringify(x.actual??"—"))}</td><td>${esc(JSON.stringify(x.nuevo??"—"))}${x.etiquetasSinPostulacion?.length?`<div class="muted">Se conservan: ${esc(x.etiquetasSinPostulacion.join(", "))}</div>`:""}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">No hay cambios propuestos.</p>`}</section>`;}).join("");
+  return `<div class="panel"><h2>Normalizar base · vista previa</h2><p>Esta vista no modifica datos. Los elementos con postulaciones nunca se borran y aparecen para revisión manual.</p><button class="btn sm" data-act="normalizarPreview">Actualizar vista previa</button> <a class="btn sm ghost" href="/api/admin/normalizar-base/backup">Descargar último respaldo JSON</a></div>${groups}${p.manuales?.length?`<section class="panel"><h2>Revisar a mano · no se borran</h2>${p.manuales.map(x=>`<div class="row">${esc(x.nombre)} · ${x.postulaciones} postulaciones</div>`).join("")}</section>`:""}<button class="btn lemon" data-act="normalizarApply"${UI.normSelected?.length?"":" disabled"}>Guardar respaldo y aplicar grupos seleccionados</button>`;
+}
 function tabsConfig(){
-  return [canFin&&["usuarios","Usuarios y accesos"],canFin&&["objetivos","Objetivos"],["conexiones","Conexiones"],["historial","Historial de cambios"],canFin&&["calidad",`Calidad de datos <span class="muted num">${calidadDatos().length}</span>`],isAdmin&&["papelera","Papelera y respaldo"],["mejoras",`Pedidos de mejora <span class="muted num">${vals(S.feedback).filter(f=>f.estado==="Pendiente"||f.estado==="En curso").length}</span>`]].filter(Boolean);
+  return [canFin&&["usuarios","Usuarios y accesos"],canFin&&["objetivos","Objetivos"],["conexiones","Conexiones"],["historial","Historial de cambios"],canFin&&["calidad",`Calidad de datos <span class="muted num">${calidadDatos().length}</span>`],me.rol==="admin"&&["normalizar","Normalizar base"],isAdmin&&["papelera","Papelera y respaldo"],["mejoras",`Pedidos de mejora <span class="muted num">${vals(S.feedback).filter(f=>f.estado==="Pendiente"||f.estado==="En curso").length}</span>`]].filter(Boolean);
 }
 function abrirTabConfig(){ const t=UI.cfgTab; if(t==="conexiones") refresh("conexiones"); if(t==="papelera"){ cargarPapelera(); if(isAdmin) cargarBackupDrive(); } if(t==="historial") S.historial=null; }
 function vConfig(){
   const tabs=tabsConfig(); if(!tabs.some(([v])=>v===UI.cfgTab)) UI.cfgTab=tabs[0][0];
   const t=UI.cfgTab;
-  const body={usuarios:()=>vUsuarios(),objetivos:objetivosBox,conexiones:vConexiones,historial:vHistorial,calidad:vCalidad,papelera:()=>papeleraBox(),mejoras:vMejoras}[t]();
+  const body={usuarios:()=>vUsuarios(),objetivos:objetivosBox,conexiones:vConexiones,historial:vHistorial,calidad:vCalidad,normalizar:vNormalizarBase,papelera:()=>papeleraBox(),mejoras:vMejoras}[t]();
   return `<div class="head"><div><h1>Configuración</h1><p>Usuarios, metas, conexiones y herramientas del sistema.</p></div></div>
   <div class="toolbar"><div class="seg" role="group" aria-label="Sección">${tabs.map(([v,l])=>`<button data-act="cfgTab" data-v="${v}" aria-pressed="${t===v}">${l}</button>`).join("")}</div></div>
   <div class="subview">${body}</div>`;
@@ -954,6 +969,26 @@ function minutasSection(list){
 function flushMin(){ const u=gv("min-u"); if(u){ pendingMin.push({titulo:gv("min-t")||"Reunión",fecha:gv("min-f")||today(),url:u.startsWith("http")?u:"https://"+u}); } return pendingMin; }
 
 // ---- búsqueda drawer ----
+function sugerenciasBusqueda(b,id){
+  const bid=id||"";
+  if(!bid) return `<div class="section" id="b-suggested-list"><span class="label">Candidatos sugeridos de la base</span><p class="muted">Guardá la búsqueda para ver y sumar candidatos sugeridos.</p></div>`;
+  const puesto=gv("b-puesto")||b.puesto||"", cliente=gv("b-cliente")||b.cliente||"";
+  const area=gv("b-area")||b.area||"", seniority=gv("b-seniority")||b.seniority||"";
+  const client=vals(S.clientes).find(x=>keyN(x.nombre)===keyN(cliente));
+  const words=keyN(puesto+" "+(gv("b-jd")||b.jobDescription||"")).match(/[a-z0-9]{4,}/g)||[];
+  const stop=new Set(["para","con","desde","puesto","busqueda","búsqueda","como","sobre","the","with","from","into"]);
+  const terms=new Set(words.filter(w=>!stop.has(w)));
+  const existing=new Set(postsOf(bid).map(p=>p.candidatoId));
+  const rows=vals(S.candidatos).filter(c=>!existing.has(c.id)).map(c=>{
+    const interested=!!client&&(c.interesantePara||[]).includes(client.id);
+    const ma=!!area&&keyN(c.area)===keyN(area), ms=!!seniority&&keyN(c.seniority)===keyN(seniority);
+    const mt=(c.tags||[]).some(t=>[...terms].some(w=>keyN(t).includes(w)));
+    const score=interested?3:ma||ms?2:mt?1:0;
+    const why=interested?`Marcado como interesante para ${client.nombre}`:ma&&ms?"Coincide en Área y Seniority":ma?"Coincide en Área":ms?"Coincide en Seniority":mt?"Etiquetas coinciden con palabras del puesto":"";
+    return {c,score,why};
+  }).filter(x=>x.score).sort((a,b)=>b.score-a.score||a.c.nombre.localeCompare(b.c.nombre,"es")).slice(0,12);
+  return `<div class="section" id="b-suggested-list"><div class="panel-head"><span class="label">Candidatos sugeridos de la base</span><span class="muted">${rows.length}</span></div>${rows.length?`<div class="list">${rows.map(({c,why})=>`<div class="row"><div class="grow"><b>${esc(c.nombre)}</b><div class="muted">${esc(why)}${c.area?` · ${esc(c.area)}`:""}${c.seniority?` · ${esc(c.seniority)}`:""}</div></div><button class="btn sm" data-act="sugeridoAdd" data-bid="${bid}" data-cid="${c.id}">Sumar a Sourcing</button></div>`).join("")}</div>`:`<p class="muted">No hay coincidencias todavía. Completá cliente, área, seniority o puesto.</p>`}</div>`;
+}
 function drawerBusqueda(id){
   const b=id?S.busquedas[id]:{estado:"Activa",fechaInicio:today(),bitacora:[]};
   if(!b) return;
@@ -964,6 +999,7 @@ function drawerBusqueda(id){
   let body=`<div class="form">
     ${field("Puesto","b-puesto",b.puesto,"text","full")}
     ${fdl("Cliente","b-cliente",b.cliente,"dl-cli")}${fsel("Recruiter","b-rec",["",...recs],b.recruiter)}
+    ${fsel("Área","b-area",["",...AREAS],b.area)}${fsel("Seniority","b-seniority",["",...SENIORITIES],b.seniority)}
     ${fsel("Estado","b-estado",ESTADOS_B,b.estado)}${fsel("Prioridad","b-prio",PRIORIDADES,b.prioridad)}
     ${field("Fecha de inicio","b-fi",b.fechaInicio,"date")}${field("Primera terna presentada","b-ft",b.fechaPrimeraTerna,"date")}
     ${field("Fecha de cierre","b-fc",b.fechaCierre,"date")}${field("Ingreso del candidato","b-fing",b.fechaIngreso,"date")}
@@ -975,6 +1011,7 @@ function drawerBusqueda(id){
     ${id&&(["Cancelada","Cerrada"].includes(b.estado)||b.fechaReapertura)?`${field("Reabierta el","b-fre",b.fechaReapertura,"date")}<div class="muted full" style="font-size:12.5px;align-self:end">Al pasar a Activa una búsqueda cancelada o cerrada, se reabre: los días y el time to fill cuentan desde esta fecha.</div>`:""}
     ${farea("Job description","b-jd",b.jobDescription,"full")}
   </div>${datalist("dl-cli",clientNames())}`;
+  body+=sugerenciasBusqueda(b,id);
   if(canFin){
     body+=`<div class="section"><span class="label">Sueldo y fee de la búsqueda</span><div class="form">
       ${field("Sueldo bruto mensual ARS","bf-sars",fin.sueldoBrutoARS,"number")}${field("Sueldo USD","bf-susd",fin.sueldoUSD,"number")}
@@ -991,6 +1028,7 @@ function drawerBusqueda(id){
   if(id) body+=archivosSection("busquedas",id);
   if(id) body+=histSection("busquedas",id);
   openDrawer(id?b.puesto:"Nueva búsqueda", id?`${esc(b.cliente)} · ${pillEstado(b.estado)}`:"", body, {save:{label:id?"Guardar cambios":"Crear búsqueda"}, del: id&&isAdmin?{label:"Eliminar"}:null, extra: id?`<button class="btn sm" data-act="repCliente" data-id="${id}">Reporte para el cliente</button>`:""});
+  for(const sel of ["b-cliente","b-puesto","b-area","b-seniority","b-jd"]) $("#"+sel)?.addEventListener("input",()=>{const el=$("#b-suggested-list");if(el)el.outerHTML=sugerenciasBusqueda(b,id);});
   drawerSave.save.fn=async()=>{
     const puesto=gv("b-puesto"); let cliente=gv("b-cliente");
     if(cliente){ const canon=clienteCanonico(cliente); if(canon) cliente=canon; else if(!drawerSave.cliNuevo){ drawerSave.cliNuevo=true; toast(`“${cliente}” no es un cliente existente. Revisá cómo está escrito o guardá de nuevo para crearlo.`,true); return; } else if(canFin){ await write("clientes/cl-"+keyN(cliente).slice(0,40),{nombre:cliente,contactos:"",notas:"",origen:"",oportunidades:[]}); } }
@@ -1002,7 +1040,8 @@ function drawerBusqueda(id){
     if(id && (det!==(b.detalle||"")||pp!==(b.proximoPaso||"")) && (det||pp)) bit.push({fecha:today(),texto:[det,pp].filter(Boolean).join(" · "),autor:me.id||""});
     const doc={...(id?b:{}),puesto,cliente,recruiter:gv("b-rec"),estado:gv("b-estado"),prioridad:gv("b-prio"),fechaInicio:gv("b-fi"),fechaPrimeraTerna:gv("b-ft"),
       fechaCierre:gv("b-fc"),fechaIngreso:gv("b-fing"),candidatoFinal:gv("b-cand"),finGarantia:gv("b-fg")||(gv("b-fing")?finGar(gv("b-fing")):""),garantia:gv("b-gar"),inicioAvance:gv("b-ia"),
-      detalle:det,proximoPaso:pp,nota:gv("b-nota"),bitacora:bit,minutas:flushMin(),actualizado:today(),jobDescription:gv("b-jd")};
+      detalle:det,proximoPaso:pp,nota:gv("b-nota"),bitacora:bit,minutas:flushMin(),actualizado:today(),jobDescription:gv("b-jd"),area:gv("b-area")||null,seniority:gv("b-seniority")||null};
+    if(id&&doc.fechaIngreso!==b.fechaIngreso) doc.seguimientoIngresoHecho=false;
     if($("#b-fre")) doc.fechaReapertura=gv("b-fre")||null;
     // Reabrir: de Cancelada o Cerrada a Activa (o En pausa) arranca de nuevo el reloj
     if(id&&["Cancelada","Cerrada"].includes(b.estado)&&["Activa","En pausa"].includes(doc.estado)){
@@ -1018,7 +1057,7 @@ function drawerBusqueda(id){
       const prev=S.fin[nid]||{}; const merged={...prev,...fdoc}; delete merged.id;
       if(JSON.stringify(merged)!==JSON.stringify(Object.fromEntries(Object.entries(prev).filter(([k])=>k!=="id")))) await write("busquedasFin/"+nid,merged);
     }
-    toast(id?"Búsqueda actualizada":"Búsqueda creada"); closeDrawer();
+    toast(id?"Búsqueda actualizada":"Búsqueda creada"); if(id) closeDrawer(); else drawerBusqueda(nid);
   };
   if(drawerSave.del) drawerSave.del.fn=async()=>{ if(drawerSave.del.armed){ if(await write("busquedas/"+id,null,"delete")){toast("Búsqueda eliminada");closeDrawer();} } else { drawerSave.del.armed=true; $("[data-act=drawerDel]").textContent="Confirmar: eliminar"; } };
 }
@@ -1050,10 +1089,14 @@ function drawerCandidato(id,{busquedaId}={}){
     ${field("LinkedIn (URL)","c-li",c.linkedin)}${field("Email","c-em",c.email)}
     ${field("Teléfono","c-tel",c.telefono)}${field("Ubicación","c-ub",c.ubicacion)}
     ${field("Rol actual","c-rol",c.rolActual)}${field("Empresa actual","c-emp",c.empresaActual)}
-    ${fsel("Área","c-area",["","Comercial","Marketing","Finanzas","Operaciones","Producto","Tecnología","Diseño","People","Atención al cliente","Dirección"],c.area)}
-    ${fsel("Seniority","c-sen",["","Jr","Ssr","Sr","Líder","Director/C-level"],c.seniority)}
+    ${fsel("Área","c-area",["",...AREAS],c.area)}
+    ${fsel("Seniority","c-sen",["",...SENIORITIES],c.seniority)}
+    ${fsel("Fuente","c-fuente",["",...(c.fuente&&!FUENTES_CANDIDATO.includes(c.fuente)?[c.fuente]:[]),...FUENTES_CANDIDATO],c.fuente)}
+    ${fsel("Estado de relación","c-rel",["",...ESTADOS_RELACION],c.estadoRelacion)}
+    ${field("Revisar en","c-revisar",c.revisarEn,"date")}
     ${field("Pretensión salarial","c-pre",c.pretension)}${field("Etiquetas (separadas por coma)","c-tags",(c.tags||[]).join(", "))}
-    ${farea("Notas de entrevista","c-not",c.notas)}
+    ${farea("Notas","c-not",c.notas)}
+    <div class="f full"><label for="c-interest">Interesante para (podés elegir varios clientes)</label><select id="c-interest" multiple style="min-height:100px">${sortBy(vals(S.clientes),x=>x.nombre).map(cl=>`<option value="${esc(cl.id)}"${(c.interesantePara||[]).includes(cl.id)?" selected":""}>${esc(cl.nombre)}</option>`).join("")}</select></div>
     ${farea("Informe del candidato","c-inf",c.informe)}<div class="muted full" style="font-size:12.5px;margin-top:-4px">El informe queda guardado acá para siempre. Pegalo (o el resumen de la minuta de Granola) antes de que Granola la borre, y adjuntá el CV abajo.</div></div>`;
   if(c.linkedin) body+=`<div><a class="btn sm" href="${esc(c.linkedin.startsWith("http")?c.linkedin:"https://"+c.linkedin)}" target="_blank" rel="noopener">Abrir LinkedIn</a></div>`;
   if(busquedaId&&!id){ const b=S.busquedas[busquedaId]; body+=`<div class="note">Se suma a <b>${esc(b?.puesto)}</b> · ${esc(b?.cliente)} en etapa ${fsel("","c-etapa",FUNNEL_E,"Sourcing")}</div>`; }
@@ -1074,7 +1117,10 @@ function drawerCandidato(id,{busquedaId}={}){
     if(!id){ const dup=vals(S.candidatos).find(x=>keyN(x.nombre)===keyN(nombre)||(li&&x.linkedin&&keyN(x.linkedin)===keyN(li))||(gv("c-em")&&x.email&&x.email.trim().toLowerCase()===gv("c-em").toLowerCase()));
       if(dup&&!drawerSave.dupOk){ drawerSave.dupOk=true; toast(`Ya existe “${dup.nombre}”. Guardá de nuevo para crear igual.`,true); return; } }
     const doc={...(id?c:{}),nombre,linkedin:li,email:gv("c-em"),telefono:gv("c-tel"),ubicacion:gv("c-ub"),rolActual:gv("c-rol"),empresaActual:gv("c-emp"),
-      area:gv("c-area"),seniority:gv("c-sen"),pretension:gv("c-pre"),tags:gv("c-tags").split(",").map(t=>t.trim()).filter(Boolean),notas:gv("c-not"),informe:gv("c-inf"),minutas:flushMin(),creado:c.creado||today(),fuente:c.fuente||"Sistema"};
+      area:gv("c-area"),seniority:gv("c-sen"),estadoRelacion:gv("c-rel")||null,revisarEn:gv("c-revisar")||null,
+      interesantePara:Array.from($("#c-interest")?.selectedOptions||[]).map(o=>o.value),pretension:gv("c-pre"),
+      tags:gv("c-tags").split(",").map(t=>t.trim()).filter(Boolean),notas:gv("c-not"),informe:gv("c-inf"),minutas:flushMin(),creado:c.creado||today(),fuente:gv("c-fuente")};
+    if(!id&&!doc.fuente){toast("Elegí la fuente del candidato.",true);return;}
     delete doc.id;
     const cid=id||newId("c");
     if(!await write("candidatos/"+cid,doc)) return;
@@ -1121,18 +1167,19 @@ function drawerCargaMasiva(bid,txt){
   const filas=lista.map(x=>{ const c=candExistente(x); return {...x,existe:c||null,yaEsta:!!(c&&enBusq.has(c.id))}; });
   const nuevos=filas.filter(x=>!x.existe).length, aSumar=filas.filter(x=>!x.yaEsta).length;
   const body=`<div class="note">Pegá una persona por renglón. Sirve una lista de links de LinkedIn, o columnas copiadas de Excel o Google Sheets en este orden: <b>nombre, rol, empresa</b>, y opcionalmente LinkedIn, email o teléfono en cualquier columna. Si la persona ya está en la base, no se duplica: se suma la misma ficha.</div>
-    <div class="form">${farea("Lista","cm-txt",txt||"")}${fsel("Etapa en la que entran","cm-e",FUNNEL_E,UI.cmEtapa||"Sourcing")}<div class="f"><label>&nbsp;</label><button class="btn" data-act="cmPrevia" data-id="${bid}">Ver cómo queda</button></div></div>
+    <div class="form">${farea("Lista","cm-txt",txt||"")}${fsel("Fuente para los candidatos nuevos","cm-fuente",["",...FUENTES_CANDIDATO],UI.cmFuente||"")}${fsel("Etapa en la que entran","cm-e",FUNNEL_E,UI.cmEtapa||"Sourcing")}<div class="f"><label>&nbsp;</label><button class="btn" data-act="cmPrevia" data-id="${bid}">Ver cómo queda</button></div></div>
     ${filas.length?`<div class="section"><span class="label">${filas.length} personas · ${nuevos} nuevas en la base · ${aSumar} se suman a esta búsqueda</span><div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Rol · empresa</th><th>Contacto</th><th></th></tr></thead><tbody>
       ${filas.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td class="muted">${esc([x.rolActual,x.empresaActual].filter(Boolean).join(" · ")||"—")}</td><td class="muted">${esc([x.linkedin?"LinkedIn":"",x.email,x.telefono].filter(Boolean).join(" · ")||"—")}</td><td>${x.yaEsta?'<span class="pill">Ya está en la búsqueda</span>':x.existe?'<span class="pill info">Ya en la base</span>':'<span class="pill ok">Nuevo</span>'}</td></tr>`).join("")}</tbody></table></div></div>`:""}`;
   openDrawer("Carga masiva al pipeline",`${esc(b.puesto)} · ${esc(b.cliente)}`,body,{save:{label:aSumar?`Cargar ${aSumar} al pipeline`:"Cargar"}});
   drawerSave.save.fn=async()=>{
     const filas2=parseLista(gv("cm-txt")).map(x=>({...x,existe:candExistente(x)}));
     if(!filas2.length){ toast("Pegá al menos una persona.",true); return; }
+    if(filas2.some(x=>!x.existe)&&!gv("cm-fuente")){toast("Elegí la fuente de los candidatos nuevos.",true);return;}
     const etapa=gv("cm-e"); UI.cmEtapa=etapa; let creados=0, sumados=0;
     const ya=new Set(postsOf(bid).map(p=>p.candidatoId));
     for(const x of filas2){
       let cid=x.existe&&x.existe.id;
-      if(!cid){ cid=newId("c"); const {existe,...datos}=x; if(!await write("candidatos/"+cid,{...datos,fuente:x.linkedin?"LinkedIn":"Carga masiva",creado:today(),tags:[]})) return; creados++; }
+      if(!cid){ cid=newId("c"); const {existe,...datos}=x; if(!await write("candidatos/"+cid,{...datos,fuente:gv("cm-fuente"),creado:today(),tags:[]})) return; creados++; }
       if(ya.has(cid)) continue; ya.add(cid);
       if(!await write("postulaciones/"+newId("p"),{busquedaId:bid,candidatoId:cid,etapa,motivo:"",fecha:today(),notas:""})) return; sumados++;
     }
@@ -1200,6 +1247,7 @@ function drawerCliente(k){
     ${!st||st.estado==="Dormido"||c.motivoInactivo?`${fsel("Por qué no nos abre búsquedas","cl-mi",["",...MOTIVOS_INACTIVO],c.motivoInactivo)}${field("Detalle","cl-di",c.detalleInactivo)}`:""}</div>
     ${docsSection(c.nombre||"")}
     ${st?`<div class="kpis">${kpi("Estado",{Activo:"Activo",Reciente:"Activo",Dormido:"Inactivo"}[st.estado]||st.estado,st.act?"tiene búsquedas abiertas":st.estado==="Reciente"?"búsqueda en los últimos 6 meses":"sin búsquedas hace más de 6 meses")}${kpi("Búsquedas",st.total,`${st.cerradas} cerradas · ${st.act} activas`)}${kpi("Facturado",usd(st.fact),"US$ eq.")}</div>`:""}
+    ${st?(()=>{const interested=vals(S.candidatos).filter(x=>(x.interesantePara||[]).includes(c.id));return `<div class="section"><span class="label">Candidatos interesantes para este cliente (${interested.length})</span>${interested.length?`<div class="list">${interested.map(x=>`<div class="row click" data-act="openCandidato" data-id="${x.id}"><b>${esc(x.nombre)}</b><span class="muted">${esc([x.area,x.seniority].filter(Boolean).join(" · "))}</span></div>`).join("")}</div>`:`<p class="muted">Todavía no hay candidatos marcados.</p>`}</div>`;})():""}
     ${c.id||st?`<div class="section"><div class="panel-head"><span class="label">Oportunidades (nuevas búsquedas en conversación)</span></div>
       ${ops.length?`<div class="list">${sortBy(ops,o=>o.fecha||"",-1).map(o=>`<div class="row"><div class="grow"><b>${esc(o.puesto)}</b><div class="muted">${fd(o.fecha)}${o.notas?" · "+esc(o.notas):""}</div></div><span class="pill ${o.estado==="Abierta"?"lemon":o.estado==="Convertida"?"ok":""}">${esc(o.estado)}</span>${o.estado==="Abierta"?`<button class="btn sm" data-act="opConvertir" data-id="${esc(o.id)}">Abrir búsqueda</button><button class="btn sm ghost" data-act="opPerder" data-id="${esc(o.id)}">Perdida</button>`:""}</div>`).join("")}</div>`:`<div class="muted" style="font-size:13px">Sin oportunidades abiertas.</div>`}
       <div class="toolbar"><input id="op-p" type="text" placeholder="Puesto que están evaluando" style="flex:1;min-width:160px"><input id="op-n" type="text" placeholder="Notas (opcional)" style="flex:1;min-width:140px"><button class="btn sm" data-act="opAdd">Agregar oportunidad</button></div></div>`:""}
@@ -1361,6 +1409,20 @@ document.addEventListener("click",async e=>{
     case "calcCom": { const r=recruiters().find(x=>x.nombre===gv("fc-rec")); const m=gn("fc-mon"); if(!r||!m){toast("Elegí recruiter y monto.",true);break;} document.getElementById("fc-com").value=Math.round(m*(+r.comisionPct||0)/100); document.getElementById("fc-cmnd").value=gv("fc-mnd"); break; }
     case "openMes": if(canFin) drawerMes(id); break;
     case "newFeedback": drawerFeedback(null); break;
+    case "normalizarPreview": {
+      try { UI.normPreview=await api("/api/admin/normalizar-base/preview",{method:"POST",body:"{}"}); UI.normSelected=Object.entries(UI.normPreview.groups||{}).filter(([,xs])=>xs.length).map(([k])=>k); UI.normResult=null; render(); }
+      catch(err){ toast(err.message||"No se pudo generar la vista previa.",true); } break;
+    }
+    case "normalizarApply": {
+      if(!UI.normSelected?.length){toast("Tildá al menos un grupo.",true);break;}
+      if(!confirm("Se guardará un respaldo completo de candidatos antes de aplicar los grupos seleccionados. ¿Continuar?")) break;
+      try { UI.normResult=await api("/api/admin/normalizar-base/apply",{method:"POST",body:JSON.stringify({grupos:UI.normSelected})}); UI.normPreview=null; await refresh("candidatos"); await refresh("postulaciones"); render(); }
+      catch(err){ toast(err.message||"No se pudo aplicar la normalización.",true); } break;
+    }
+    case "posponerRevision": { const c=S.candidatos[id]; if(c&&await write("candidatos/"+id,{revisarEn:addDays(today(),7)},"update")) toast("Revisión pospuesta 7 días"); break; }
+    case "limpiarRevision": if(await write("candidatos/"+id,{revisarEn:null},"update")) toast("Fecha de revisión limpiada"); break;
+    case "marcarSeguimientoIngreso": if(await write("busquedas/"+id,{seguimientoIngresoHecho:true},"update")) toast("Seguimiento marcado como hecho"); break;
+    case "sugeridoAdd": { const bid=t.dataset.bid,cid=t.dataset.cid; if(await write("postulaciones/"+newId("p"),{busquedaId:bid,candidatoId:cid,etapa:"Sourcing",motivo:"",fecha:today(),notas:""})){toast("Candidato sumado a Sourcing");drawerBusqueda(bid);} break; }
     case "openFeedback": drawerFeedback(id); break;
     case "fbEstado": UI.fbEstado=v; render(); break;
     case "newUser": drawerUser(null); break;
@@ -1405,6 +1467,10 @@ document.addEventListener("click",async e=>{
     case "saveObjetivos": { const o={facturacionMensualARS:gn("o-fac"),ticketPromedioARS:gn("o-tic"),feeMinimoARS:gn("o-fee"),timeToFillDias:gn("o-ttf"),busquedasActivas:gn("o-ba"),propuestasMes:gn("o-pr"),nuevosClientesMes:gn("o-nc")};
       if(await write("objetivos/config",o)) toast("Objetivos guardados"); break; }
   }
+});
+document.addEventListener("change",e=>{
+  const g=e.target.closest("[data-norm-group]");
+  if(g){const k=g.dataset.normGroup;UI.normSelected=UI.normSelected||[];UI.normSelected=g.checked?uniq([...UI.normSelected,k]):UI.normSelected.filter(x=>x!==k);render();}
 });
 document.addEventListener("change",async e=>{
   const el=e.target;
