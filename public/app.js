@@ -333,7 +333,7 @@ function vBusquedas(){
     h+=`<div class="cards">${list.map(cardBusqueda).join("")}</div>`;
   } else {
     h+=`<div class="tablewrap"><table><thead><tr><th>Puesto</th><th>Cliente</th><th>Recruiter</th><th>Estado</th><th>Inicio</th><th>Cierre</th><th class="r">TTF</th><th>Candidato final</th></tr></thead><tbody>
-    ${list.map(b=>`<tr class="click" data-act="openBusqueda" data-id="${b.id}"><td><b>${esc(b.puesto)}</b>${b.garantia?' <span class="tag">garantía</span>':""}${b.inicioAvance?' <span class="tag">inicio y avance</span>':""}</td><td>${esc(b.cliente)}</td><td>${esc(b.recruiter||"—")}</td><td>${pillEstado(b.estado)}</td><td class="num">${fd(b.fechaInicio)}</td><td class="num">${fd(b.fechaCierre)}</td><td class="r num">${ttf(b)??"—"}</td><td>${esc(b.candidatoFinal||"—")}</td></tr>`).join("")}
+    ${list.map(b=>`<tr class="click" data-act="openBusqueda" data-id="${b.id}"><td><b>${esc(b.puesto)}</b>${b.publicarWeb&&b.estado==="Activa"?' <span class="tag">en la web</span>':""}${b.garantia?' <span class="tag">garantía</span>':""}${b.inicioAvance?' <span class="tag">inicio y avance</span>':""}</td><td>${esc(b.cliente)}</td><td>${esc(b.recruiter||"—")}</td><td>${pillEstado(b.estado)}</td><td class="num">${fd(b.fechaInicio)}</td><td class="num">${fd(b.fechaCierre)}</td><td class="r num">${ttf(b)??"—"}</td><td>${esc(b.candidatoFinal||"—")}</td></tr>`).join("")}
     </tbody></table></div>`;
   }
   return h;
@@ -414,7 +414,7 @@ function miniFunnel(ps){
 function tablaSeguimiento(list){
   const rows=sortBy(list.map(b=>({b,sa:salud(b),ps:postsOf(b.id)})),r=>`${SALUD_ORD[r.sa.nivel]}${String(999-(days(r.b.fechaInicio)||0)).padStart(4,"0")}`);
   const tarjetas=`<div class="list solo-mob">${rows.map(({b,sa,ps})=>`<div class="segcard click" data-act="openBusqueda" data-id="${b.id}">
-    <div class="segcard-top"><div style="min-width:0"><b>${esc(b.puesto)}</b><div class="muted">${esc(b.cliente)} · ${esc(b.recruiter||"—")}</div></div>${pillSalud(sa)||pillEstado(b.estado)}</div>
+    <div class="segcard-top"><div style="min-width:0"><b>${esc(b.puesto)}</b>${b.publicarWeb&&b.estado==="Activa"?' <span class="tag">en la web</span>':""}<div class="muted">${esc(b.cliente)} · ${esc(b.recruiter||"—")}</div></div>${pillSalud(sa)||pillEstado(b.estado)}</div>
     ${sa.motivos.length?`<div class="muted" style="font-size:12.5px">${esc(sa.motivos.join(" · "))}</div>`:""}
     <div class="segcard-nums">${ps.length?miniFunnel(ps):""}<span title="${b.estado==="Cerrada"?"Time to fill: desde el inicio (o la reapertura) hasta el cierre":"Días desde el inicio (o la reapertura)"}"><b class="num">${tiempoB(b).n??"—"}</b> ${tiempoB(b).l}</span><span><b class="num">${ps.filter(p=>p.etapa!=="Descartado").length}</b> vivos</span><span><b class="num">${ps.filter(p=>alcance(p)>=3).length}</b> present.</span><span class="muted">${hace(days(ultimoMov(b,ps)))}</span></div>
     ${b.proximoPaso?`<div style="font-size:13px"><span class="muted">Próximo paso:</span> ${esc(b.proximoPaso)}</div>`:""}</div>`).join("")}</div>`;
@@ -1011,6 +1011,14 @@ function drawerBusqueda(id){
     ${id&&(["Cancelada","Cerrada"].includes(b.estado)||b.fechaReapertura)?`${field("Reabierta el","b-fre",b.fechaReapertura,"date")}<div class="muted full" style="font-size:12.5px;align-self:end">Al pasar a Activa una búsqueda cancelada o cerrada, se reabre: los días y el time to fill cuentan desde esta fecha.</div>`:""}
     ${farea("Job description","b-jd",b.jobDescription,"full")}
   </div>${datalist("dl-cli",clientNames())}`;
+  body+=`<div class="section"><span class="label">Publicación en la web</span>
+    <div class="muted" style="font-size:12.5px">Las búsquedas Activas marcadas aparecen en el sitio de Lemon y los candidatos se pueden postular: entran a la base con fuente “Postulación” y a esta búsqueda en Sourcing. Solo se publica lo de este bloque, el puesto, el área y el seniority.</div>
+    <div class="form">
+    <label class="check full"><input id="b-pweb" type="checkbox"${b.publicarWeb?" checked":""}> Publicar en la web</label>
+    <label class="check full"><input id="b-cweb" type="checkbox"${b.mostrarClienteWeb?" checked":""}> Mostrar el nombre del cliente</label>
+    ${field("Rubro (si no se muestra el cliente)","b-rweb",b.rubroWeb,"text")}${field("Ubicación y modalidad","b-uweb",b.ubicacionWeb,"text")}
+    ${farea("Descripción para la web","b-dweb",b.descripcionWeb,"full")}
+    </div></div>`;
   body+=sugerenciasBusqueda(b,id);
   if(canFin){
     body+=`<div class="section"><span class="label">Sueldo y fee de la búsqueda</span><div class="form">
@@ -1040,7 +1048,9 @@ function drawerBusqueda(id){
     if(id && (det!==(b.detalle||"")||pp!==(b.proximoPaso||"")) && (det||pp)) bit.push({fecha:today(),texto:[det,pp].filter(Boolean).join(" · "),autor:me.id||""});
     const doc={...(id?b:{}),puesto,cliente,recruiter:gv("b-rec"),estado:gv("b-estado"),prioridad:gv("b-prio"),fechaInicio:gv("b-fi"),fechaPrimeraTerna:gv("b-ft"),
       fechaCierre:gv("b-fc"),fechaIngreso:gv("b-fing"),candidatoFinal:gv("b-cand"),finGarantia:gv("b-fg")||(gv("b-fing")?finGar(gv("b-fing")):""),garantia:gv("b-gar"),inicioAvance:gv("b-ia"),
-      detalle:det,proximoPaso:pp,nota:gv("b-nota"),bitacora:bit,minutas:flushMin(),actualizado:today(),jobDescription:gv("b-jd"),area:gv("b-area")||null,seniority:gv("b-seniority")||null};
+      detalle:det,proximoPaso:pp,nota:gv("b-nota"),bitacora:bit,minutas:flushMin(),actualizado:today(),jobDescription:gv("b-jd"),area:gv("b-area")||null,seniority:gv("b-seniority")||null,
+      publicarWeb:gv("b-pweb"),mostrarClienteWeb:gv("b-cweb"),rubroWeb:gv("b-rweb"),ubicacionWeb:gv("b-uweb"),descripcionWeb:gv("b-dweb")};
+    if(doc.publicarWeb&&doc.estado==="Activa"&&!doc.mostrarClienteWeb&&!doc.rubroWeb&&!drawerSave.webAviso){ drawerSave.webAviso=true; toast("Vas a publicar la búsqueda sin cliente ni rubro: se va a ver solo el puesto. Guardá de nuevo si está bien así.",true); return; }
     if(id&&doc.fechaIngreso!==b.fechaIngreso) doc.seguimientoIngresoHecho=false;
     if($("#b-fre")) doc.fechaReapertura=gv("b-fre")||null;
     // Reabrir: de Cancelada o Cerrada a Activa (o En pausa) arranca de nuevo el reloj
