@@ -40,6 +40,12 @@ export const busquedas = pgTable("busquedas", {
   area: text("area"),
   seniority: text("seniority"),
   seguimientoIngresoHecho: boolean("seguimiento_ingreso_hecho"),
+  // Publicación en el sitio público (server/sitio.js)
+  publicarWeb: boolean("publicar_web").default(false),
+  mostrarClienteWeb: boolean("mostrar_cliente_web").default(false),
+  rubroWeb: text("rubro_web"),
+  ubicacionWeb: text("ubicacion_web"),
+  descripcionWeb: text("descripcion_web"),
 });
 
 // Datos de dinero de cada búsqueda: separados para que las recruiters no los vean.
@@ -77,6 +83,7 @@ export const candidatos = pgTable("candidatos", {
   estadoRelacion: text("estado_relacion"),
   interesantePara: jsonb("interesante_para"),
   revisarEn: d("revisar_en"),
+  consentimientoWeb: d("consentimiento_web"), // fecha en que aceptó guardar sus datos al postularse desde el sitio
 });
 
 // Candidato x búsqueda (pipeline)

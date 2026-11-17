@@ -24,6 +24,7 @@ import { registerSeguridad, migrarSeguridad, headersSeguridad, bloqueado, anotar
 import { AREAS, SENIORITIES } from "../shared/profile-options.js";
 import { registerNormalizarBase } from "./normalizar-base.js";
 import { ejecutarLimpiezaUnicaProduccion } from "./limpieza-unica-produccion.js";
+import { registerSitio, migrarSitio } from "./sitio.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -189,6 +190,7 @@ registerGastos(app, { pool, auth });
 registerRecruiters(app, { pool, auth, rank, RANK });
 registerSeguridad(app, { pool, auth });
 registerMail(app, { auth });
+registerSitio(app, { pool, newId, publicDir: path.join(__dirname, "..", "public") });
 
 // Costos unitarios por año, solo ratios (nunca totales): para admins.
 app.get("/api/unit-costs", auth("admin"), async (req, res, next) => {
@@ -326,6 +328,7 @@ migrarSeguridad(pool).catch((e) => console.error("No se pudo preparar el registr
   .then(() => migrarIntegridad(pool)).catch((e) => console.error("No se pudo ligar el equipo a los usuarios:", e.message))
   .then(() => migrarMcp(pool)).catch((e) => console.error("No se pudieron preparar los tokens del MCP:", e.message))
   .then(() => migrarGastos(pool)).catch((e) => console.error("No se pudieron preparar los gastos:", e.message))
+  .then(() => migrarSitio(pool)).catch((e) => console.error("No se pudo preparar la publicación en la web:", e.message))
   .then(bootstrapAdmin).catch((e) => console.error("No se pudo crear el usuario inicial:", e.message))
   .then(() => ejecutarLimpiezaUnicaProduccion(pool)).catch((e) => console.error("[limpieza puntual producción] error inesperado:", e.message))
   .finally(() => app.listen(PORT, "0.0.0.0", () => console.log(`Lemon Talent OS en puerto ${PORT}`)));

@@ -142,6 +142,15 @@ Los pedidos están en la pantalla "Pedidos de mejora" (tabla `feedback`). Al ter
 - Usa la cuenta de servicio de Google (`GOOGLE_SA_JSON`) impersonando `MAIL_REMITENTE`. Requiere sumar el scope `https://www.googleapis.com/auth/gmail.send` a la delegación de dominio en Google Admin. Sin eso, no se envía y queda un aviso en el log.
 - Configuración › Conexiones muestra el estado y permite "Mandarme un mail de prueba".
 
+## Sitio público y búsquedas abiertas (`server/sitio.js`, `public/sitio/`)
+
+- El sitio de Lemon (estilo editorial, design system "Lemon Talent") vive en `public/sitio/` y se ve en `/sitio/`. En los hosts de `SITE_HOSTS` (por defecto `lemontalent.com,www.lemontalent.com`) `/` y `/assets/*` sirven el sitio; en cualquier otro host `/` sigue siendo el OS.
+- Búsquedas: bloque "Publicación en la web" en el panel de edición (`publicarWeb`, `mostrarClienteWeb`, `rubroWeb`, `ubicacionWeb`, `descripcionWeb`). Solo las **Activas** con `publicarWeb` aparecen. La lista marca "en la web".
+- `GET /api/publico/busquedas` (sin login, cache 60 s): id, puesto, empresa (cliente o rubro), área, seniority, ubicación y descripción pública. Nunca recruiter, montos, notas, bitácora ni job description interna.
+- `POST /api/publico/postular` (sin login, JSON; CV en base64, PDF ≤5 MB): honeypot `web`, 5 por IP por hora, consentimiento obligatorio. Busca el candidato por LinkedIn normalizado y después por email (no pisa datos existentes); si no existe lo crea con fuente "Postulación" y estado "No contactado". Guarda el CV en `archivos` y, si eligió búsqueda, crea la postulación en Sourcing. El historial queda a nombre de "web". Avisa por mail a la recruiter y a los admins.
+- Columnas nuevas (`busquedas.*_web`, `candidatos.consentimiento_web`) se crean solas al arrancar (`migrarSitio`).
+- Tests: `test/sitio.test.js`.
+
 ## Tests
 
 - `npm test` corre `test/api.test.js` contra `TEST_DATABASE_URL` (una base de prueba que se vacía; si no es local, no corre salvo en CI). Cubre permisos por rol, link del cliente, opinión, login con bloqueo, sesiones y normalización de vínculos.
