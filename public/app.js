@@ -1016,7 +1016,7 @@ function drawerBusqueda(id){
     <div class="form">
     <label class="check full"><input id="b-pweb" type="checkbox"${b.publicarWeb?" checked":""}> Publicar en la web</label>
     <label class="check full"><input id="b-cweb" type="checkbox"${b.mostrarClienteWeb?" checked":""}> Mostrar el nombre del cliente</label>
-    ${field("Rubro (si no se muestra el cliente)","b-rweb",b.rubroWeb,"text")}${field("Ubicación y modalidad","b-uweb",b.ubicacionWeb,"text")}
+    ${field("Rubro","b-rweb",b.rubroWeb,"text")}${field("Web o red de la empresa (https://…)","b-lweb",b.linkEmpresaWeb,"text")}${field("Ubicación y modalidad","b-uweb",b.ubicacionWeb,"text")}
     ${farea("Descripción para la web","b-dweb",b.descripcionWeb,"full")}
     </div></div>`;
   body+=sugerenciasBusqueda(b,id);
@@ -1049,7 +1049,7 @@ function drawerBusqueda(id){
     const doc={...(id?b:{}),puesto,cliente,recruiter:gv("b-rec"),estado:gv("b-estado"),prioridad:gv("b-prio"),fechaInicio:gv("b-fi"),fechaPrimeraTerna:gv("b-ft"),
       fechaCierre:gv("b-fc"),fechaIngreso:gv("b-fing"),candidatoFinal:gv("b-cand"),finGarantia:gv("b-fg")||(gv("b-fing")?finGar(gv("b-fing")):""),garantia:gv("b-gar"),inicioAvance:gv("b-ia"),
       detalle:det,proximoPaso:pp,nota:gv("b-nota"),bitacora:bit,minutas:flushMin(),actualizado:today(),jobDescription:gv("b-jd"),area:gv("b-area")||null,seniority:gv("b-seniority")||null,
-      publicarWeb:gv("b-pweb"),mostrarClienteWeb:gv("b-cweb"),rubroWeb:gv("b-rweb"),ubicacionWeb:gv("b-uweb"),descripcionWeb:gv("b-dweb")};
+      publicarWeb:gv("b-pweb"),mostrarClienteWeb:gv("b-cweb"),rubroWeb:gv("b-rweb"),ubicacionWeb:gv("b-uweb"),descripcionWeb:gv("b-dweb"),linkEmpresaWeb:gv("b-lweb")};
     if(doc.publicarWeb&&doc.estado==="Activa"&&!doc.mostrarClienteWeb&&!doc.rubroWeb&&!drawerSave.webAviso){ drawerSave.webAviso=true; toast("Vas a publicar la búsqueda sin cliente ni rubro: se va a ver solo el puesto. Guardá de nuevo si está bien así.",true); return; }
     if(id&&doc.fechaIngreso!==b.fechaIngreso) doc.seguimientoIngresoHecho=false;
     if($("#b-fre")) doc.fechaReapertura=gv("b-fre")||null;

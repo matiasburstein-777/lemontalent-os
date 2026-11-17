@@ -12,6 +12,7 @@ ALTER TABLE busquedas ADD COLUMN IF NOT EXISTS mostrar_cliente_web boolean DEFAU
 ALTER TABLE busquedas ADD COLUMN IF NOT EXISTS rubro_web text;
 ALTER TABLE busquedas ADD COLUMN IF NOT EXISTS ubicacion_web text;
 ALTER TABLE busquedas ADD COLUMN IF NOT EXISTS descripcion_web text;
+ALTER TABLE busquedas ADD COLUMN IF NOT EXISTS link_empresa_web text;
 ALTER TABLE candidatos ADD COLUMN IF NOT EXISTS consentimiento_web date;`;
 
 export async function migrarSitio(pool) { await pool.query(SQL); }
@@ -44,6 +45,8 @@ export function busquedaPublica(b) {
     id: b.id,
     puesto: b.puesto,
     empresa: b.mostrar_cliente_web ? b.cliente || null : b.rubro_web || null,
+    rubro: b.mostrar_cliente_web ? b.rubro_web || null : null,
+    link: b.mostrar_cliente_web && /^https:\/\/[^\s"<>]+$/i.test(b.link_empresa_web || "") ? b.link_empresa_web : null,
     area: b.area || null,
     seniority: b.seniority || null,
     ubicacion: b.ubicacion_web || null,
@@ -72,7 +75,7 @@ export function registerSitio(app, { pool, newId, publicDir }) {
     try {
       if (!cache.data || Date.now() - cache.t > 60_000) {
         const { rows } = await pool.query(
-          `SELECT id, puesto, cliente, area, seniority, mostrar_cliente_web, rubro_web, ubicacion_web, descripcion_web
+          `SELECT id, puesto, cliente, area, seniority, mostrar_cliente_web, rubro_web, ubicacion_web, descripcion_web, link_empresa_web
              FROM busquedas WHERE estado = 'Activa' AND publicar_web IS TRUE
              ORDER BY coalesce(fecha_reapertura, fecha_inicio) DESC NULLS LAST, id`);
         cache = { t: Date.now(), data: rows.map(busquedaPublica) };

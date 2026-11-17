@@ -246,6 +246,9 @@ button.btn{border:0;font-family:inherit;cursor:pointer}
 .job:hover{border-color:#CFC3EC;box-shadow:0 18px 40px rgba(72,18,158,.07);transform:translateY(-3px)}
 .job h3{margin:0 0 6px;font-size:clamp(20px,2vw,24px);font-weight:500;letter-spacing:-.01em}
 .job .co{font-size:15px;color:var(--violet);font-weight:500}
+.job .co a{color:inherit;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(72,18,158,.3)}
+.job .co a:hover{text-decoration-color:currentColor}
+.job .co .rub{color:var(--ink-2);font-weight:400}
 .job .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
 .job .meta span{background:var(--lav);border-radius:999px;padding:5px 11px;font-size:13px;color:var(--ink-2)}
 .job details{grid-column:1/-1;font-size:16px;line-height:1.6;color:var(--ink-2)}
@@ -727,7 +730,13 @@ var EN={
       var c=el('article','job');
       var left=el('div');
       left.appendChild(el('h3',null,j.puesto));
-      if(j.empresa) left.appendChild(el('div','co',j.empresa));
+      if(j.empresa){
+        var co=el('div','co');
+        if(j.link){var a=el('a',null,j.empresa);a.href=j.link;a.target='_blank';a.rel='noopener noreferrer';co.appendChild(a);co.appendChild(document.createTextNode(' ↗'));}
+        else co.textContent=j.empresa;
+        if(j.rubro) co.appendChild(el('span','rub',' · '+j.rubro));
+        left.appendChild(co);
+      }
       var meta=el('div','meta');
       [j.area,j.seniority,j.ubicacion].forEach(function(m){if(m)meta.appendChild(el('span',null,m));});
       if(meta.children.length) left.appendChild(meta);

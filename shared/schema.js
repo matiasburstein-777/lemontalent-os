@@ -46,6 +46,7 @@ export const busquedas = pgTable("busquedas", {
   rubroWeb: text("rubro_web"),
   ubicacionWeb: text("ubicacion_web"),
   descripcionWeb: text("descripcion_web"),
+  linkEmpresaWeb: text("link_empresa_web"),
 });
 
 // Datos de dinero de cada búsqueda: separados para que las recruiters no los vean.

@@ -29,11 +29,11 @@ before(async () => {
   for (let i = 0; i < 100 && !log.includes("Lemon Talent OS en puerto"); i++) await new Promise((r) => setTimeout(r, 100));
   assert.ok(log.includes("Lemon Talent OS en puerto"), "El servidor no arrancó:\n" + log);
   await pool.query("TRUNCATE busquedas, busquedas_fin, candidatos, postulaciones, archivos");
-  await pool.query(`INSERT INTO busquedas (id, puesto, cliente, recruiter, estado, fecha_inicio, publicar_web, mostrar_cliente_web, rubro_web, ubicacion_web, descripcion_web, nota, job_description, area) VALUES
-    ('w1','Head of Growth','Cliente Secreto','Maga','Activa','2026-11-01', true, false, 'Fintech en crecimiento', 'CABA · Híbrido', 'Liderar adquisición.', 'nota interna', 'JD interna', 'Marketing / Growth'),
-    ('w2','SDR','Otro','Maga','Activa','2026-11-02', false, false, null, null, null, null, null, null),
-    ('w3','CFO','Otro','Maga','Cancelada','2026-10-01', true, true, null, null, null, null, null, null),
-    ('w4','Account Executive','Payana','Maga','Activa','2026-11-03', true, true, null, 'Remoto', null, null, null, null)`);
+  await pool.query(`INSERT INTO busquedas (id, puesto, cliente, recruiter, estado, fecha_inicio, publicar_web, mostrar_cliente_web, rubro_web, ubicacion_web, descripcion_web, nota, job_description, area, link_empresa_web) VALUES
+    ('w1','Head of Growth','Cliente Secreto','Maga','Activa','2026-11-01', true, false, 'Fintech en crecimiento', 'CABA · Híbrido', 'Liderar adquisición.', 'nota interna', 'JD interna', 'Marketing / Growth', 'https://secreto.com'),
+    ('w2','SDR','Otro','Maga','Activa','2026-11-02', false, false, null, null, null, null, null, null, null),
+    ('w3','CFO','Otro','Maga','Cancelada','2026-10-01', true, true, null, null, null, null, null, null, null),
+    ('w4','Account Executive','Payana','Maga','Activa','2026-11-03', true, true, 'Fintech', 'Remoto', null, null, null, null, 'https://www.payana.la')`);
   await pool.query("INSERT INTO busquedas_fin (id, sueldo_bruto_ars) VALUES ('w1', 9999999)");
 });
 
@@ -44,12 +44,16 @@ test("el listado público muestra solo búsquedas activas publicadas, sin datos 
   assert.equal(r.status, 200);
   const { busquedas } = await r.json();
   assert.deepEqual(busquedas.map((b) => b.id).sort(), ["w1", "w4"]);
-  for (const b of busquedas) assert.deepEqual(Object.keys(b).sort(), ["area", "descripcion", "empresa", "id", "puesto", "seniority", "ubicacion"]);
+  for (const b of busquedas) assert.deepEqual(Object.keys(b).sort(), ["area", "descripcion", "empresa", "id", "link", "puesto", "rubro", "seniority", "ubicacion"]);
   const w1 = busquedas.find((b) => b.id === "w1"), w4 = busquedas.find((b) => b.id === "w4");
   assert.equal(w1.empresa, "Fintech en crecimiento");
   assert.equal(w4.empresa, "Payana");
+  assert.equal(w4.rubro, "Fintech");
+  assert.equal(w4.link, "https://www.payana.la");
+  assert.equal(w1.link, null, "con el cliente oculto no se publica el link");
+  assert.equal(w1.rubro, null);
   const txt = JSON.stringify(busquedas);
-  for (const prohibido of ["Cliente Secreto", "Maga", "nota interna", "JD interna", "9999999"]) assert.ok(!txt.includes(prohibido), prohibido);
+  for (const prohibido of ["Cliente Secreto", "secreto.com", "Maga", "nota interna", "JD interna", "9999999"]) assert.ok(!txt.includes(prohibido), prohibido);
 });
 
 test("el honeypot responde ok sin guardar nada", async () => {
