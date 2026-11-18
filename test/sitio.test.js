@@ -15,7 +15,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 let srv, pool;
 
 const postular = (body) => fetch(BASE + "/api/publico/postular", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-const base = { nombre: "Lucía Web", email: "lucia@ejemplo.com", linkedin: "https://www.linkedin.com/in/lucia-web/", acepta: true };
+const base = { nombre: "Lucía Web", email: "lucia@ejemplo.com", linkedin: "https://www.linkedin.com/in/lucia-web/", ubicacion: "CABA, Argentina", acepta: true };
 const PDF = Buffer.from("%PDF-1.4\n%prueba\n").toString("base64");
 const conHost = (host, path) => new Promise((ok, ko) => {
   http.get({ host: "127.0.0.1", port: PORT, path, headers: { host } }, (r) => { let b = ""; r.on("data", (d) => (b += d)); r.on("end", () => ok({ status: r.statusCode, body: b })); }).on("error", ko);
@@ -64,6 +64,7 @@ test("el honeypot responde ok sin guardar nada", async () => {
 
 test("valida los datos, el CV y que la búsqueda esté publicada", async () => {
   assert.equal((await postular({ ...base, linkedin: "" })).status, 400);
+  assert.equal((await postular({ ...base, ubicacion: "" })).status, 400, "ciudad y país es obligatorio");
   assert.equal((await postular({ ...base, linkedin: "https://twitter.com/x" })).status, 400);
   assert.equal((await postular({ ...base, acepta: false })).status, 400);
   assert.equal((await postular({ ...base, busquedaId: "w2" })).status, 400);
@@ -78,12 +79,13 @@ test("valida los datos, el CV y que la búsqueda esté publicada", async () => {
 test("una postulación crea el candidato, lo suma en Sourcing y guarda el CV", async () => {
   const r = await postular({ ...base, busquedaId: "w1", telefono: "+54 11 5555 5555", mensaje: "Me interesa mucho", cv: { nombre: "Lucia.pdf", base64: PDF } });
   assert.deepEqual(await r.json(), { ok: true });
-  const { rows: cs } = await pool.query("SELECT id, fuente, estado_relacion, consentimiento_web, notas FROM candidatos");
+  const { rows: cs } = await pool.query("SELECT id, fuente, estado_relacion, consentimiento_web, notas, ubicacion FROM candidatos");
   assert.equal(cs.length, 1);
   assert.equal(cs[0].fuente, "Postulación");
   assert.equal(cs[0].estado_relacion, "No contactado");
   assert.ok(cs[0].consentimiento_web);
   assert.match(cs[0].notas, /Me interesa mucho/);
+  assert.equal(cs[0].ubicacion, "CABA, Argentina");
   const { rows: ps } = await pool.query("SELECT busqueda_id, etapa, etapas FROM postulaciones WHERE candidato_id = $1", [cs[0].id]);
   assert.equal(ps.length, 1);
   assert.equal(ps[0].busqueda_id, "w1");

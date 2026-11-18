@@ -28,12 +28,12 @@ const txt = (v, max) => String(v ?? "").trim().slice(0, max);
 
 const MSG = {
   es: {
-    datos: "Completá nombre, email y LinkedIn.", email: "Revisá el email.", li: "Pegá el link a tu perfil de LinkedIn.",
+    datos: "Completá nombre, email, LinkedIn y ciudad y país.", email: "Revisá el email.", li: "Pegá el link a tu perfil de LinkedIn.",
     acepta: "Necesitamos tu consentimiento para guardar tus datos.", cv: "El CV tiene que ser un PDF de hasta 5 MB.",
     busq: "Esta búsqueda ya no está abierta.", limite: "Recibimos varias postulaciones desde tu conexión. Probá de nuevo en un rato.",
   },
   en: {
-    datos: "Please fill in your name, email and LinkedIn.", email: "Please check your email.", li: "Please paste your LinkedIn profile link.",
+    datos: "Please fill in your name, email, LinkedIn and city and country.", email: "Please check your email.", li: "Please paste your LinkedIn profile link.",
     acepta: "We need your consent to store your details.", cv: "Your CV must be a PDF up to 5 MB.",
     busq: "This role is no longer open.", limite: "We’ve received several applications from your connection. Please try again later.",
   },
@@ -100,7 +100,8 @@ export function registerSitio(app, { pool, newId, publicDir }) {
 
       const nombre = txt(b0.nombre, 120), email = txt(b0.email, 160).toLowerCase(), telefono = txt(b0.telefono, 40);
       const linkedin = txt(b0.linkedin, 300), mensaje = txt(b0.mensaje, 2000), busquedaId = txt(b0.busquedaId, 80);
-      if (!nombre || !email || !linkedin) return error(400, M.datos);
+      const ubicacion = txt(b0.ubicacion, 120);
+      if (!nombre || !email || !linkedin || !ubicacion) return error(400, M.datos);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error(400, M.email);
       if (!/(^|\.|\/)linkedin\.com\//i.test(linkedin)) return error(400, M.li);
       if (!(b0.acepta === true || b0.acepta === "on" || b0.acepta === "true")) return error(400, M.acepta);
@@ -123,7 +124,7 @@ export function registerSitio(app, { pool, newId, publicDir }) {
       if (intentos.size > 5000) for (const [k, v] of intentos) if (!v.some((t) => ahora - t < VENTANA)) intentos.delete(k);
 
       const hoy = hoyBA();
-      const nota = `Postulación web (${hoy})${b ? ` a ${b.puesto}` : " · perfil general"}${mensaje ? `: ${mensaje}` : ""}`;
+      const nota = `Postulación web (${hoy})${b ? ` a ${b.puesto}` : " · perfil general"} · vive en ${ubicacion}${mensaje ? `: ${mensaje}` : ""}`;
 
       // Candidato: mismo criterio que la Carga masiva (LinkedIn y después email), sin pisar datos existentes.
       const li = normLi(linkedin);
@@ -137,15 +138,16 @@ export function registerSitio(app, { pool, newId, publicDir }) {
       if (cand) {
         await pool.query(
           `UPDATE candidatos SET email = coalesce(nullif(email, ''), $2), telefono = coalesce(nullif(telefono, ''), $3), linkedin = coalesce(nullif(linkedin, ''), $4),
+             ubicacion = coalesce(nullif(ubicacion, ''), $7),
              notas = CASE WHEN coalesce(notas, '') = '' THEN $5 ELSE notas || E'\\n' || $5 END, consentimiento_web = $6 WHERE id = $1`,
-          [cand.id, email, telefono || null, linkedin, nota, hoy]);
+          [cand.id, email, telefono || null, linkedin, nota, hoy, ubicacion]);
       } else {
         nuevo = true;
         cand = { id: newId("c"), nombre };
         await pool.query(
-          `INSERT INTO candidatos (id, nombre, linkedin, email, telefono, fuente, estado_relacion, creado, notas, tags, consentimiento_web)
-           VALUES ($1,$2,$3,$4,$5,'Postulación','No contactado',$6,$7,'[]'::jsonb,$6)`,
-          [cand.id, nombre, linkedin, email, telefono || null, hoy, nota]);
+          `INSERT INTO candidatos (id, nombre, linkedin, email, telefono, fuente, estado_relacion, creado, notas, tags, consentimiento_web, ubicacion)
+           VALUES ($1,$2,$3,$4,$5,'Postulación','No contactado',$6,$7,'[]'::jsonb,$6,$8)`,
+          [cand.id, nombre, linkedin, email, telefono || null, hoy, nota, ubicacion]);
       }
       await historial(pool, "candidatos", cand.id, nuevo ? "crear" : "editar", nuevo ? { fuente: [null, "Postulación"] } : { notas: ["…", "postulación web"] });
 
@@ -168,7 +170,7 @@ export function registerSitio(app, { pool, newId, publicDir }) {
       }
 
       res.json({ ok: true });
-      avisarPostulacion(pool, { b, nombre, email, linkedin, mensaje, nuevo, sumado, conCv: !!cv, candId: cand.id })
+      avisarPostulacion(pool, { b, nombre, email, linkedin, ubicacion, mensaje, nuevo, sumado, conCv: !!cv, candId: cand.id })
         .catch((e) => console.error("No se pudo avisar la postulación web:", e.message));
     } catch (e) { next(e); }
   });
@@ -181,7 +183,7 @@ async function historial(pool, coleccion, id, accion, cambios) {
   } catch (e) { console.error("historial (web):", e.message); }
 }
 
-async function avisarPostulacion(pool, { b, nombre, email, linkedin, mensaje, nuevo, sumado, conCv, candId }) {
+async function avisarPostulacion(pool, { b, nombre, email, linkedin, ubicacion, mensaje, nuevo, sumado, conCv, candId }) {
   const para = await destinatariosBusqueda(pool, b ? b.recruiter : null);
   const r = await enviarMail({
     para,
@@ -190,6 +192,7 @@ async function avisarPostulacion(pool, { b, nombre, email, linkedin, mensaje, nu
       titulo: b ? `${nombre} se postuló a ${b.puesto}` : `${nombre} dejó su perfil en la web`,
       lineas: [
         `<b>${escHtml(nombre)}</b> · ${escHtml(email)} · <a href="${escHtml(linkedin)}">LinkedIn</a>${conCv ? " · con CV adjunto" : ""}`,
+        `Vive en: ${escHtml(ubicacion)}`,
         b ? `${escHtml(b.cliente || "")} · ${sumado ? "Quedó en Sourcing en la búsqueda." : "Ya estaba en el pipeline de esta búsqueda."}` : "No eligió una búsqueda puntual.",
         nuevo ? "Es un candidato nuevo en la base (fuente: Postulación)." : "Ya estaba en la base: se completaron sus datos y se sumó la nota.",
         mensaje ? `Mensaje: “${escHtml(mensaje)}”` : "",

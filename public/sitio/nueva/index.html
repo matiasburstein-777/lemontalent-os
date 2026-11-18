@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Lemon Talent — Recruiting para startups y compañías digitales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Solo colores del manual de marca: #48129E · #7228DD · #BB91FF · #D7DF26 · #F9F9F9 · #757575 · negro y blanco */
+  --violet:#48129E; --violet-2:#7228DD; --lilac:#BB91FF; --violet-deep:#48129E; --lime:#D7DF26; --lime-soft:#D7DF26;
+  --ink:#000000; --ink-2:rgba(0,0,0,.72); --muted:#757575; --line:rgba(0,0,0,.1);
+  --bg:#F9F9F9; --paper:#FFFFFF; --lav:#F9F9F9; --lilac-soft:rgba(187,145,255,.22);
+  --serif:'DM Sans',system-ui,sans-serif; --sans:'DM Sans',system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+img{display:block;max-width:100%}
+a{color:var(--violet)}
+.wrap{padding:12px;display:flex;flex-direction:column;gap:12px}
+.card{border-radius:24px;overflow:hidden;position:relative}
+.pad{padding:clamp(56px,8vw,112px) clamp(22px,6vw,96px)}
+.label{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0}
+.label::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--violet)}
+.dark .label{color:rgba(255,255,255,.8)}.dark .label::before{background:var(--lime)}
+.h-display{font-family:var(--serif);font-weight:500;letter-spacing:-.035em;line-height:1.05;margin:0}
+.h2{font-size:clamp(36px,4.6vw,68px)}
+.btn{display:inline-flex;align-items:center;gap:10px;min-height:46px;padding:0 22px;border-radius:999px;font-size:15px;font-weight:500;text-decoration:none;transition:transform .3s var(--ease),background .3s,color .3s;white-space:nowrap}
+.btn:hover{transform:translateY(-2px)}
+.btn-violet{background:var(--violet);color:#fff}.btn-violet:hover{background:var(--violet-2);color:#fff}
+.btn-lime{background:var(--lime);color:var(--ink)}.btn-lime:hover{filter:brightness(1.06);color:var(--ink)}
+.btn-ghost{border:1px solid rgba(255,255,255,.5);color:#fff}.btn-ghost:hover{background:rgba(255,255,255,.1);color:#fff}
+.arrow{transition:transform .3s var(--ease)}a:hover .arrow{transform:translateX(4px)}
+
+/* NAV */
+.nav{position:fixed;z-index:50;top:24px;left:50%;transform:translateX(-50%);width:min(1400px,calc(100% - 48px));display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px 12px 24px;border-radius:18px;transition:background .4s,box-shadow .4s,top .4s}
+.nav.scrolled{top:16px;background:rgba(255,255,255,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 8px 30px rgba(0,0,0,.08)}
+.nav .logo{flex:none}.nav .logo img{height:38px;width:auto;max-width:none}
+.nav-links{display:flex;gap:30px}
+.nav-links a{color:var(--ink);text-decoration:none;font-size:15px;position:relative}
+.nav-links a::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:1px;background:currentColor;transform:scaleX(0);transform-origin:left;transition:transform .35s var(--ease)}
+.nav-links a:hover::after{transform:scaleX(1)}
+.nav-cta{display:flex;gap:8px}
+.burger{display:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--ink);color:#fff;cursor:pointer}
+@media (max-width:900px){
+  .nav-links,.nav-cta .btn-lime,.nav-cta .btn-violet{display:none}
+  .nav{top:12px;width:calc(100% - 24px);padding-left:16px}
+  .nav.open .nav-links{display:flex;position:absolute;top:calc(100% + 8px);left:0;right:0;flex-direction:column;gap:18px;padding:24px;border-radius:18px;background:#fff;box-shadow:0 12px 30px rgba(0,0,0,.12)}
+  .burger{display:inline-flex;align-items:center;justify-content:center}
+}
+
+/* HERO */
+.hero{min-height:min(920px,100vh);background:#fff;display:flex;align-items:flex-end}
+.orb{position:absolute;border-radius:50%;pointer-events:none;will-change:transform}
+.orb.a{width:62vw;height:62vw;max-width:900px;max-height:900px;right:-12vw;top:-30%;background:radial-gradient(circle at 35% 35%,#BB91FF 0%,#BB91FF 50%,#7228DD 100%);opacity:.6;animation:drift1 22s ease-in-out infinite alternate}
+.orb.b{width:44vw;height:44vw;max-width:640px;max-height:640px;right:18%;bottom:-38%;background:radial-gradient(circle at 50% 30%,#D7DF26 0%,rgba(215,223,38,.7) 100%);opacity:.5;animation:drift2 26s ease-in-out infinite alternate}
+.orb.c{width:30vw;height:30vw;max-width:420px;max-height:420px;left:-8vw;top:8%;background:radial-gradient(circle,rgba(187,145,255,.5) 0%,#BB91FF 100%);opacity:.55;animation:drift3 30s ease-in-out infinite alternate}
+.ring{position:absolute;border-radius:50%;border:1px solid rgba(114,40,221,.16);pointer-events:none;animation:spin 60s linear infinite}
+.ring.r1{width:78vw;height:78vw;max-width:1150px;max-height:1150px;right:-22vw;top:-20%}
+.ring.r2{width:56vw;height:56vw;max-width:820px;max-height:820px;left:28%;top:40%;animation-duration:80s;animation-direction:reverse}
+@keyframes drift1{to{transform:translate(-6vw,8vh) scale(1.08)}}
+@keyframes drift2{to{transform:translate(8vw,-10vh) scale(.92)}}
+@keyframes drift3{to{transform:translate(5vw,12vh) scale(1.15)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hero-in{position:relative;width:100%;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:40px;align-items:end;padding:160px clamp(22px,6vw,96px) clamp(56px,7vw,96px)}
+.hero h1{font-size:clamp(40px,7vw,104px)}
+.hero h1 .w{display:inline-block;overflow:hidden;vertical-align:bottom;padding:0 .1em .16em;margin:0 -.1em -.16em}
+.hero h1 .w>*{display:inline-block;transform:translateY(105%);transition:transform 1s var(--ease)}
+.hero.in h1 .w>*{transform:none}
+.hero h1 em{font-style:italic;color:var(--violet)}
+.hero-sub,.tagline{font-size:clamp(18px,1.5vw,20px);font-weight:400;line-height:1.5;color:var(--ink-2);max-width:560px;margin:28px 0 32px}
+.foot .tagline{margin:14px 0 0;max-width:340px}
+.hero-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.hero-ill{justify-self:end;width:min(100%,460px);animation:float 7s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-14px)}}
+@media (max-width:900px){.hero-in{grid-template-columns:1fr;padding-top:130px}.hero-ill{justify-self:start;width:min(80%,360px)}}
+
+/* ANNOUNCE */
+.announce{background:#fff;border-radius:16px;padding:14px 22px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px 16px;font-size:15px}
+.pill{background:var(--lime-soft);color:#000;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:6px 11px;border-radius:999px}
+
+/* LOGOS */
+.logos{background:var(--paper)}
+.marquee{overflow:hidden;-webkit-mask:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent);mask:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent)}
+.track{display:flex;width:max-content;animation:marquee 95s linear infinite}
+.marquee:hover .track{animation-play-state:paused}
+.track .lg{flex:none;display:flex;align-items:center;justify-content:center;height:96px;padding:0 44px;border-right:1px solid var(--line)}
+.track .lg img{object-fit:contain;filter:grayscale(1) contrast(1.1);opacity:.6;transition:filter .4s,opacity .4s}
+.track .lg:hover img{filter:none;opacity:1}
+@keyframes marquee{to{transform:translateX(-50%)}}
+.what{display:grid;grid-template-columns:minmax(180px,1fr) minmax(0,3fr);gap:32px 64px;margin-top:clamp(64px,8vw,110px)}
+.what p.big{font-family:var(--serif);font-weight:500;letter-spacing:-.025em;font-size:clamp(30px,3.6vw,54px);line-height:1.14;letter-spacing:-.02em;margin:0}
+.what p.big .lit{color:rgba(0,0,0,.18);transition:color .25s}
+@media (max-width:760px){.what{grid-template-columns:1fr}}
+
+/* DARK / STACK */
+.dark{background:var(--violet-deep);color:#fff}
+.stack{display:flex;flex-direction:column;gap:20px;margin-top:56px}
+.step{position:sticky;top:110px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:40px;align-items:center;padding:40px clamp(24px,4vw,56px);border-radius:22px;background:var(--violet-2);border:1px solid rgba(255,255,255,.12);box-shadow:0 -20px 40px rgba(0,0,0,.18)}
+.step:nth-child(2){top:130px}
+.step:nth-child(3){top:150px}
+.step .n{font-family:var(--serif);font-weight:500;font-size:clamp(56px,7vw,96px);line-height:1;color:var(--lime)}
+.step h3{font-size:clamp(22px,2.4vw,32px);font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+.step p{margin:0;color:rgba(255,255,255,.8);font-size:17px;line-height:1.5;max-width:620px}
+@media (max-width:760px){.step{grid-template-columns:1fr;position:relative;top:auto!important}}
+
+/* USE CASES */
+.paper{background:var(--paper)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:48px}
+.case{border-radius:22px;padding:clamp(28px,3.4vw,48px);min-height:380px;display:flex;flex-direction:column;gap:18px;position:relative;overflow:hidden;transition:transform .5s var(--ease)}
+.case:hover{transform:translateY(-6px)}
+.case .k{font-size:13px;font-weight:500;letter-spacing:.09em;text-transform:uppercase}
+.case h3{margin:0;font-size:clamp(26px,2.6vw,36px);font-weight:500;letter-spacing:-.015em;line-height:1.15;max-width:440px}
+.case p{margin:0;font-size:17px;line-height:1.55;color:var(--ink-2);max-width:460px;flex-grow:1}
+.case a{font-weight:500;text-decoration:none}
+.case .blob{position:absolute;width:260px;height:260px;border-radius:50%;right:-80px;bottom:-90px;opacity:.6;transition:transform .8s var(--ease)}
+.case:hover .blob{transform:scale(1.25)}
+
+/* VALUES (carousel feel) */
+.white{background:#fff}
+.head-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:20px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:9px 15px;font-size:14px;color:var(--ink-2)}
+.values{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-top:48px}
+.val{background:#F9F9F9;border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:12px;transition:background .4s,transform .5s var(--ease)}
+.val:hover{background:var(--lilac-soft);transform:translateY(-6px)}
+.val .ill{height:150px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.val .ill img{max-height:150px;width:auto}
+.val h3{margin:0;font-size:23px;font-weight:500}
+.val p{margin:0;font-size:16px;line-height:1.55;color:var(--ink-2)}
+
+/* TEAM */
+.team{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:48px}
+.person{background:#fff;border:1px solid var(--line);border-radius:22px;padding:28px;display:flex;gap:24px;align-items:center;transition:box-shadow .4s,transform .5s var(--ease)}
+.person:hover{transform:translateY(-4px);box-shadow:0 20px 40px rgba(72,18,158,.08)}
+.person .ph{flex:none;width:132px;height:132px;border-radius:50%;overflow:hidden;background:var(--lav)}
+.person .ph img{width:100%;height:100%;object-fit:cover}
+.person .num{font-size:13px;font-weight:700;color:var(--violet)}
+.person h3{margin:4px 0 4px;font-size:25px;font-weight:500}
+.person p{margin:0;color:var(--ink-2)}
+.person .li{display:inline-block;margin-top:10px;font-size:14px;font-weight:500}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:32px;border-top:1px solid var(--line);padding-top:44px;margin-top:56px}
+.stat .v{font-family:var(--serif);font-weight:500;font-size:clamp(64px,7vw,104px);line-height:1;color:var(--violet);letter-spacing:-.03em}
+.stat .d{font-size:17px;color:var(--ink-2);margin-top:10px;max-width:260px;line-height:1.45}
+.src{margin-top:28px;font-size:13px;color:var(--muted)}
+
+/* TESTIMONIALS */
+.lav{background:var(--lilac)}
+.tmarquee{overflow:hidden;margin-top:48px;-webkit-mask:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.ttrack{display:flex;gap:16px;width:max-content;animation:marquee 70s linear infinite}
+.tmarquee:hover .ttrack{animation-play-state:paused}
+.tcard{flex:none;width:min(440px,82vw);background:#fff;border-radius:22px;padding:32px;display:flex;flex-direction:column;justify-content:space-between;gap:28px;margin:0}
+.tcard blockquote{margin:0;font-family:var(--serif);font-weight:400;font-size:19px;line-height:1.5}
+.tcard figcaption{display:flex;align-items:center;gap:14px;font-size:15px;color:var(--ink-2)}
+.tcard figcaption img{height:30px;width:auto;max-width:96px;object-fit:contain}
+.tcard figcaption .co{font-weight:700;color:var(--ink);font-size:15px;min-width:60px}
+.tcard strong{display:block;color:var(--ink);font-weight:500}
+
+/* CTA */
+.cta{background:var(--violet-deep);color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;gap:36px}
+.cta .orb.a{opacity:.35;background:radial-gradient(circle,#D7DF26 0%,rgba(215,223,38,0) 70%);left:-12%;right:auto;top:auto;bottom:-60%}
+.cta .ring{border-color:rgba(255,255,255,.16)}
+.cta h2{position:relative;font-size:clamp(40px,5.4vw,82px);max-width:1000px}
+.cta .row{position:relative;display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.cta .contact{position:relative;font-size:15px;color:rgba(255,255,255,.8)}
+.cta .contact a{color:#fff;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(255,255,255,.4)}
+.cta .contact a:hover{text-decoration-color:#fff}
+
+/* FOOTER */
+.foot{background:#fff;padding:64px clamp(22px,6vw,96px) 32px}
+.fcols{display:flex;flex-wrap:wrap;justify-content:space-between;gap:40px}
+.fcols .col{display:flex;flex-direction:column;gap:10px;font-size:15px;flex:1 1 170px}
+.fcols .col a{color:var(--ink);text-decoration:none}.fcols .col a:hover{color:var(--violet)}
+.fcols .col .t{font-size:13px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.fcols .brand{flex:2 1 260px}
+.fcols .brand img{height:44px;width:auto;align-self:flex-start;object-fit:contain}
+.legal{border-top:1px solid var(--line);margin-top:48px;padding-top:22px;font-size:13px;color:var(--muted)}
+
+/* REVEAL */
+.rv{opacity:0;transform:translateY(40px);transition:opacity 1s var(--ease),transform 1s var(--ease)}
+.rv.in{opacity:1;transform:none}
+.rv.d1{transition-delay:.1s}.rv.d2{transition-delay:.2s}.rv.d3{transition-delay:.3s}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .rv{opacity:1;transform:none}.hero h1 .w>*{transform:none}
+}
+
+/* HERO — typographic only */
+.hero-in{grid-template-columns:1fr!important}
+.hero h1{max-width:1180px}
+.hero-meta{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:28px}
+.hero-meta .hero-sub{margin:0}
+
+/* LANG */
+.lang{position:relative}
+.lang-btn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 16px;border:1px solid rgba(0,0,0,.16);border-radius:999px;background:rgba(255,255,255,.6);font:500 14px var(--sans);color:var(--ink);cursor:pointer;transition:background .3s}
+.lang-btn:hover{background:#fff}
+.lang-btn .caret{transition:transform .3s var(--ease)}
+.lang-btn[aria-expanded="true"] .caret{transform:rotate(180deg)}
+.lang-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;background:#fff;border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.14);padding:6px;display:flex;flex-direction:column;z-index:60}
+.lang-menu[hidden]{display:none}
+.lang-menu button{border:0;background:transparent;text-align:left;font:500 15px var(--sans);color:var(--ink);padding:12px 14px;border-radius:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.lang-menu button:hover{background:var(--bg)}
+.lang-menu button[aria-checked="true"]{color:var(--violet)}
+.lang-menu button[aria-checked="true"]::after{content:"✓";font-size:14px}
+@media (max-width:900px){.lang-btn span{display:none}.lang-btn{padding:0 12px}}
+
+/* PROCESS DIAGRAM */
+.diagram{position:relative;height:600px;max-width:1100px;margin:72px auto 24px}
+.dfloat{position:absolute;inset:0;animation:bob 6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-8px)}}
+.disc{position:absolute;left:50%;top:50%;width:380px;height:132px;margin:-66px 0 0 -190px;border-radius:50%;
+  background:radial-gradient(ellipse at 50% 30%,rgba(255,255,255,.55) 0%,rgba(187,145,255,.4) 32%,rgba(114,40,221,.5) 70%,rgba(72,18,158,.7) 100%);
+  border:1px solid rgba(255,255,255,.55);box-shadow:0 0 50px rgba(187,145,255,.35),inset 0 -12px 30px rgba(255,255,255,.15);
+  transition:transform .15s linear}
+.disc:last-child{background:radial-gradient(ellipse at 50% 30%,rgba(255,255,255,.75) 0%,rgba(215,223,38,.55) 30%,rgba(215,223,38,.85) 70%,rgba(215,223,38,1) 100%);border-color:rgba(255,255,255,.8);box-shadow:0 0 70px rgba(215,223,38,.45)}
+.dchip{position:absolute;top:50%;display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.07);backdrop-filter:blur(6px);
+  font-size:12.5px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:#fff;white-space:nowrap;opacity:0;transition:opacity .6s var(--ease),translate .6s var(--ease)}
+.dchip svg{flex:none}
+.dchip.l{right:calc(50% + 250px);translate:-16px -50%}
+.dchip.r{left:calc(50% + 250px);translate:16px -50%}
+.dchip.on{opacity:1;translate:0 -50%}
+.dchip::after{content:"";position:absolute;top:50%;width:56px;border-top:1px dashed rgba(255,255,255,.4)}
+.dchip.l::after{left:100%}.dchip.r::after{right:100%}
+.dsteps{display:none}
+@media (max-width:900px){
+  .diagram{height:360px;margin-top:48px}
+  .disc{width:240px;height:84px;margin:-42px 0 0 -120px}
+  .dchip{display:none}
+  .dsteps{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:24px}
+  .dsteps span{border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:8px 14px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#fff}
+}
+
+/* AREAS CAROUSEL */
+.amarquee{overflow:hidden;margin-top:48px;-webkit-mask:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.atrack{display:flex;gap:16px;width:max-content;animation:marquee 60s linear infinite}
+.amarquee:hover .atrack{animation-play-state:paused}
+.acard{flex:none;width:320px;min-height:250px;border-radius:22px;background:#F9F9F9;padding:28px;display:flex;flex-direction:column;gap:16px;transition:background .4s,transform .5s var(--ease)}
+.acard:hover{background:var(--lilac-soft);transform:translateY(-6px)}
+.acard .ico{width:46px;height:46px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;color:var(--violet)}
+.acard h3{margin:0;font-size:22px;font-weight:500;letter-spacing:-.01em}
+.acard .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
+.acard .tags span{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:13px;color:var(--ink-2)}
+
+/* OPEN ROLES */
+[hidden]{display:none!important}
+button.btn{border:0;font-family:inherit;cursor:pointer}
+
+.jobs{display:flex;flex-direction:column;gap:12px;margin-top:48px}
+.job{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px 32px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:20px;padding:26px 30px;transition:border-color .3s,box-shadow .4s,transform .5s var(--ease)}
+.job:hover{border-color:#BB91FF;box-shadow:0 18px 40px rgba(72,18,158,.07);transform:translateY(-3px)}
+.job h3{margin:0 0 6px;font-size:clamp(20px,2vw,24px);font-weight:500;letter-spacing:-.01em}
+.job .co{font-size:15px;color:var(--violet);font-weight:500}
+.job .co a{color:inherit;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(72,18,158,.3)}
+.job .co a:hover{text-decoration-color:currentColor}
+.job .co .rub{color:var(--ink-2);font-weight:400}
+.job .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.job .meta span{background:var(--lilac-soft);border-radius:999px;padding:5px 11px;font-size:13px;color:var(--ink-2)}
+.job details{grid-column:1/-1;font-size:16px;line-height:1.6;color:var(--ink-2)}
+.job details summary{cursor:pointer;color:var(--violet);font-weight:500;font-size:14px;list-style:none;display:inline-flex;align-items:center;gap:6px;min-height:32px}
+.job details summary::-webkit-details-marker{display:none}
+.job details[open] summary .chev{transform:rotate(180deg)}
+.job details .txt{white-space:pre-line;margin-top:8px;max-width:820px}
+.jobs-empty{background:#fff;border:1px dashed #BB91FF;border-radius:20px;padding:36px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between}
+.jobs-empty p{margin:0;font-size:18px;max-width:560px;line-height:1.5}
+.skel{height:118px;border-radius:20px;background:linear-gradient(90deg,#F9F9F9 25%,#fff 50%,#F9F9F9 75%);background-size:200% 100%;animation:sk 1.4s linear infinite}
+@keyframes sk{to{background-position:-200% 0}}
+@media (max-width:700px){.job{grid-template-columns:1fr}.job .btn{justify-self:start}}
+
+/* APPLY DIALOG */
+dialog.apply{border:0;padding:0;border-radius:24px;width:min(560px,calc(100% - 24px));max-height:calc(100% - 24px);box-shadow:0 30px 80px rgba(0,0,0,.25);color:var(--ink)}
+dialog.apply::backdrop{background:rgba(72,18,158,.45);backdrop-filter:blur(4px)}
+.apply-in{padding:32px;display:flex;flex-direction:column;gap:16px}
+.apply-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.apply-head h3{margin:0;font-family:var(--serif);font-weight:500;font-size:32px;line-height:1.1;letter-spacing:-.02em}
+.apply-head p{margin:6px 0 0;color:var(--violet);font-weight:500;font-size:15px}
+.xbtn{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--ink)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fgrid .full{grid-column:1/-1}
+.fgrid>*{min-width:0}
+.fld input,.fld textarea,.fld select{width:100%;box-sizing:border-box}
+@media (max-width:560px){.fgrid{grid-template-columns:1fr}}
+.fld{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500}
+.fld input,.fld textarea,.fld select{font:400 16px var(--sans);color:var(--ink);border:1px solid rgba(0,0,0,.15);border-radius:12px;padding:12px 14px;background:#fff;min-height:46px}
+.fld select{appearance:none;-webkit-appearance:none;padding-right:40px;background:#fff url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2348129E%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E") no-repeat right 16px center}
+.fld textarea{min-height:96px;resize:vertical}
+.fld input:focus,.fld textarea:focus,.fld select:focus{outline:2px solid var(--violet);outline-offset:1px;border-color:transparent}
+.fld .hint{font-weight:400;color:var(--muted);font-size:13px}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;color:var(--ink-2)}
+.chk input{width:20px;height:20px;margin-top:1px;accent-color:var(--violet);flex:none}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.ferr{color:#B42318;font-size:14px;min-height:20px;margin:0}
+.apply-ok{text-align:center;padding:40px 32px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.apply-ok .ok-ico{width:64px;height:64px;border-radius:50%;background:var(--lime);display:flex;align-items:center;justify-content:center}
+.apply-ok h3{margin:0;font-family:var(--serif);font-weight:500;font-size:32px}
+.apply-ok p{margin:0;color:var(--ink-2);max-width:380px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<nav class="nav" id="nav" aria-label="Principal">
+  <a class="logo" href="#top" aria-label="Lemon Talent"><img src="../assets/logo_violet.png" alt="Lemon Talent"></a>
+  <div class="nav-links">
+    <a href="#por-que" data-i18n="nav1">¿Por qué Lemon?</a>
+    <a href="#clientes" data-i18n="nav2">Clientes</a>
+    <a href="#equipo" data-i18n="nav3">Equipo</a>
+    <a href="#contacto" data-i18n="nav4">Contacto</a>
+  </div>
+  <div class="nav-cta">
+    <div class="lang" id="lang">
+      <button type="button" class="lang-btn" id="langBtn" aria-haspopup="true" aria-expanded="false" aria-controls="langMenu">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z"/></svg>
+        <span>Language</span>
+        <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="lang-menu" id="langMenu" role="menu" hidden>
+        <button type="button" role="menuitemradio" data-lang="es" aria-checked="true">Spanish</button>
+        <button type="button" role="menuitemradio" data-lang="en" aria-checked="false">English</button>
+      </div>
+    </div>
+    <a class="btn btn-violet" href="#contacto" data-i18n="ctaContact">Contactanos</a>
+    <a class="btn btn-lime" href="#busquedas" data-i18n="ctaApply">Aplicá</a>
+    <button class="burger" id="burger" aria-label="Menú" aria-expanded="false">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</nav>
+
+<div class="wrap" id="top">
+
+  <header class="card hero" id="hero">
+    <div class="orb a" data-par="0.12" aria-hidden="true"></div>
+    <div class="orb b" data-par="-0.08" aria-hidden="true"></div>
+    <div class="orb c" data-par="0.18" aria-hidden="true"></div>
+    <div class="ring r1" aria-hidden="true"></div>
+    <div class="ring r2" aria-hidden="true"></div>
+    <div class="hero-in">
+      <h1 class="h-display" id="h1" data-i18n-html="h1">Conectamos líderes emprendedores con los mejores <em>talentos</em>.</h1>
+      <div class="hero-meta" style="margin-top:36px">
+        <p class="hero-sub rv d2" data-i18n="heroSub">Hacemos recruiting para startups, compañías digitales y equipos en transformación.</p>
+        <div class="hero-actions rv d3">
+          <a class="btn btn-violet" href="#contacto"><span data-i18n="heroCta">Hablemos de tu búsqueda</span> <span class="arrow">→</span></a>
+          <a href="#clientes" style="font-weight:500;text-decoration:none" data-i18n="heroLink">Conocé con quiénes trabajamos ↓</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="announce rv">
+    <span class="pill">Rappi</span>
+    <span data-i18n="ann">185 puestos cubiertos desde que Rappi desembarcó en Argentina.</span>
+    <a href="#casos" style="font-weight:500;text-decoration:none"><span data-i18n="annLink">Ver casos reales</span> <span class="arrow">→</span></a>
+  </div>
+
+  <section class="card logos pad" id="clientes" aria-labelledby="lbl-cli">
+    <p class="label rv" id="lbl-cli" style="margin-bottom:36px" data-i18n="cliLabel">Con quiénes trabajamos</p>
+    <div class="marquee rv">
+      <div class="track" id="track">
+        <div class="lg"><img src="../assets/c_calm.svg" style="height:47px;width:141px" alt="Calm"></div>
+        <div class="lg"><img src="../assets/c_rappi.svg" style="height:53px;width:124px" alt="Rappi"></div>
+        <div class="lg"><img src="../assets/c_wonderbrands.png" style="height:64px;width:94px" alt="Wonderbrands"></div>
+        <div class="lg"><img src="../assets/c_valiu.png" style="height:45px;width:146px" alt="Valiu"></div>
+        <div class="lg"><img src="../assets/c_complif.png" style="height:42px;width:155px" alt="Complif"></div>
+        <div class="lg"><img src="../assets/c_kolibri.png" style="height:41px;width:160px" alt="Kolibri"></div>
+        <div class="lg"><img src="../assets/c_global66.png" style="height:35px;width:187px" alt="Global66"></div>
+        <div class="lg"><img src="../assets/c_payana.png" style="height:36px;width:182px" alt="Payana"></div>
+        <div class="lg"><img src="../assets/c_numia.png" style="height:40px;width:166px" alt="Numia"></div>
+        <div class="lg"><img src="../assets/c_prometeo.png" style="height:34px;width:196px" alt="Prometeo"></div>
+        <div class="lg"><img src="../assets/c_wave.webp" style="height:25px;width:210px" alt="Wave Brands"></div>
+        <div class="lg"><img src="../assets/c_matter.webp" style="height:45px;width:148px" alt="Matter"></div>
+        <div class="lg"><img src="../assets/c_granger.webp" style="height:33px;width:202px" alt="Granger"></div>
+        <div class="lg"><img src="../assets/c_5yardas.png" style="height:41px;width:161px" alt="Cinco Yardas"></div>
+        <div class="lg"><img src="../assets/c_forme.png" style="height:37px;width:177px" alt="For Me"></div>
+        <div class="lg"><img src="../assets/c_mobile.webp" style="height:29px;width:210px" alt="Mobile First"></div>
+      </div>
+    </div>
+    <div class="what">
+      <p class="label rv" data-i18n="whatLabel">Qué hacemos</p>
+      <p class="big" id="bigtext" data-i18n="whatText">Creemos que el éxito y el crecimiento dependen en gran medida de rodearse de las personas indicadas. Hacemos recruiting. Armamos grandes equipos para crear grandes proyectos.</p>
+    </div>
+  </section>
+
+  <section class="card dark pad" aria-labelledby="como">
+    <p class="label rv" data-i18n="howLabel">Cómo lo hacemos</p>
+    <h2 class="h-display h2 rv d1" id="como" style="margin-top:22px;max-width:900px" data-i18n="howTitle">Nos integramos a tu equipo como si fuera el nuestro</h2>
+
+    <div class="diagram" id="diagram" aria-label="Proceso de búsqueda">
+      <div class="dfloat">
+        <div class="disc"></div><div class="disc"></div><div class="disc"></div><div class="disc"></div><div class="disc"></div>
+      </div>
+      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg><span data-i18n="d1">Entendemos tu negocio y el perfil</span></span>
+      <span class="dchip r"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span data-i18n="d2">Búsqueda activa</span></span>
+      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span data-i18n="d3">Entrevistas y evaluación</span></span>
+      <span class="dchip r"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 1.8 6 5.5"/></svg><span data-i18n="d4">Presentación de finalistas</span></span>
+      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="d5">Acompañamiento hasta la incorporación</span></span>
+    </div>
+    <div class="dsteps" aria-hidden="true"><span data-i18n="d1">Entendemos tu negocio y el perfil</span><span data-i18n="d2">Búsqueda activa</span><span data-i18n="d3">Entrevistas y evaluación</span><span data-i18n="d4">Presentación de finalistas</span><span data-i18n="d5">Acompañamiento hasta la incorporación</span></div>
+
+    <div class="stack">
+      <div class="step">
+        <span class="n">01</span>
+        <div><h3 data-i18n="s1t">Construimos relaciones duraderas</h3><p data-i18n="s1p">Acompañamos a cada equipo en el tiempo, a medida que la compañía crece.</p></div>
+      </div>
+      <div class="step">
+        <span class="n">02</span>
+        <div><h3 data-i18n="s2t">Grandes equipos para grandes proyectos</h3><p data-i18n="s2p">Nos empapamos del negocio y de la cultura antes de salir a buscar, para sumar personas que realmente encajen.</p></div>
+      </div>
+      <div class="step">
+        <span class="n">03</span>
+        <div><h3 data-i18n="s3t">Damos siempre el extra mile</h3><p data-i18n="s3p">Nos involucramos, nos sentimos parte y damos siempre un poco más.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card paper pad" aria-labelledby="para">
+    <h2 class="h-display h2 rv" id="para" style="max-width:900px" data-i18n="forTitle">Talento, velocidad y compromiso en un solo lugar</h2>
+    <div class="grid2">
+      <div class="case rv" style="background:var(--lilac)">
+        <span class="k" style="color:var(--ink)" data-i18n="c1k">Para empresas</span>
+        <h3 data-i18n="c1t">Recruiting para startups y equipos en transformación</h3>
+        <p data-i18n="c1p">Definimos el perfil con vos, nos movemos rápido y te acompañamos en todo el proceso de incorporación de tu equipo, en cada etapa de la compañía. Incluso cuando todavía no sabés bien qué perfil buscar: te ayudamos a definirlo y a encontrar a las personas que van a acompañar el momento real de tu negocio.</p>
+        <a href="#contacto" style="color:var(--violet)"><span data-i18n="ctaContact">Contactanos</span> <span class="arrow">→</span></a>
+        <div class="blob" style="background:radial-gradient(circle,#7228DD,transparent 70%);opacity:.35" aria-hidden="true"></div>
+      </div>
+      <div class="case rv d1" id="aplica" style="background:var(--lime-soft)">
+        <span class="k" style="color:#000" data-i18n="c2k">Para talentos</span>
+        <h3 data-i18n="c2t">Encontrá el equipo donde vas a crecer</h3>
+        <p data-i18n="c2p">Sumate a nuestra red y enterate de las búsquedas que encajan con tu perfil.</p>
+        <a href="#busquedas" style="color:var(--ink)"><span data-i18n="ctaApply">Aplicá</span> <span class="arrow">→</span></a>
+        <div class="blob" style="background:radial-gradient(circle,#fff,transparent 70%)" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card white pad" aria-labelledby="areas">
+    <div class="head-row">
+      <h2 class="h-display h2 rv" id="areas" style="max-width:760px" data-i18n="arTitle">Búsquedas en todas las áreas del negocio</h2>
+      <a class="rv d1" href="#contacto" style="font-weight:500;text-decoration:none"><span data-i18n="arLink">Contanos qué perfil buscás</span> <span class="arrow">→</span></a>
+    </div>
+    <div class="amarquee rv">
+      <div class="atrack" id="atrack">
+        <div class="acard"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><h3 data-i18n="a1">Comercial y ventas</h3><div class="tags"><span>SDR</span><span>Account Executive</span><span>KAM</span><span>Head of Sales</span></div></div>
+        <div class="acard"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8z"/></svg></div><h3 data-i18n="a2">Marketing y growth</h3><div class="tags"><span>Head of Growth</span><span>Performance</span><span>SEO</span><span>Marketing Manager</span></div></div>
+        <div class="acard"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/></svg></div><h3 data-i18n="a3">Diseño y creatividad</h3><div class="tags"><span data-i18n="a3t1">Diseño gráfico</span><span data-i18n="a3t2">Redacción creativa</span><span>Copywriter</span><span>Brand Manager</span></div></div>
+        <div class="acard"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 15l3-3 3 2 4-5"/></svg></div><h3 data-i18n="a4">Finanzas y administración</h3><div class="tags"><span>Finance Director</span><span>Head of Accounting</span><span data-i18n="a4t3">Tesorería</span><span data-i18n="a4t4">Control de gestión</span></div></div>
+        <div class="acard"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></div><h3 data-i18n="a5">Operaciones y supply</h3><div class="tags"><span>Operations Lead</span><span data-i18n="a5t2">Logística</span><span data-i18n="a5t3">Compras</span><span>Warehouse</span></div></div>
+        <div class="acard"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><h3 data-i18n="a6">Tecnología y datos</h3><div class="tags"><span>Backend Developer</span><span>Forward Deployed Engineer</span><span>Data Analyst</span><span>BI</span></div></div>
+        <div class="acard"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><h3 data-i18n="a7">Personas y clientes</h3><div class="tags"><span>People Manager</span><span>HRBP</span><span>CX Manager</span><span>Customer Success</span></div></div>
+        <div class="acard"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4.5 2 7.5-6.5-4.5L5.5 21l2-7.5L2 9h7z"/></svg></div><h3 data-i18n="a8">Liderazgo</h3><div class="tags"><span>General Manager</span><span>Head of Sales</span><span>Finance Director</span><span>Head of Growth</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card white pad" id="busquedas" aria-labelledby="jt">
+    <div class="head-row">
+      <div>
+        <p class="label rv" data-i18n="jobsLabel">Búsquedas abiertas</p>
+        <h2 class="h-display h2 rv d1" id="jt" style="margin-top:22px;max-width:820px" data-i18n="jobsTitle">Sumate a los equipos que estamos armando</h2>
+      </div>
+      <button type="button" class="btn btn-lime rv d2" data-apply="" data-i18n="jobsGeneral">Dejanos tu perfil</button>
+    </div>
+    <div class="jobs" id="jobs" aria-live="polite">
+      <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+    </div>
+  </section>
+
+  <dialog class="apply" id="applyDlg" aria-labelledby="apTitle">
+    <form class="apply-in" id="applyForm" novalidate>
+      <div class="apply-head">
+        <div><h3 id="apTitle" data-i18n="apTitle">Postulate</h3><p id="apRole"></p></div>
+        <button type="button" class="xbtn" id="apClose" aria-label="Cerrar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div class="fgrid">
+        <label class="fld full"><span data-i18n="fRole">Búsqueda a la que aplicás</span><select name="busqueda" id="apSelect" required></select></label>
+        <label class="fld full"><span data-i18n="fName">Nombre y apellido</span><input name="nombre" required autocomplete="name"></label>
+        <label class="fld"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
+        <label class="fld"><span data-i18n="fPhone">Teléfono</span><input name="telefono" type="tel" autocomplete="tel"></label>
+        <label class="fld full"><span data-i18n="fCity">Ciudad y país de residencia</span><input name="ubicacion" required autocomplete="address-level2" data-i18n-ph="fCityPh" placeholder="Ej.: Ciudad de México, México"></label>
+        <label class="fld full"><span>LinkedIn</span><input name="linkedin" type="url" required placeholder="https://www.linkedin.com/in/…"></label>
+        <label class="fld full"><span data-i18n="fCv">CV (PDF, hasta 5 MB)</span><input name="cv" type="file" accept="application/pdf,.pdf"><span class="hint" data-i18n="fCvHint">Opcional si tu LinkedIn está actualizado.</span></label>
+        <label class="fld full"><span data-i18n="fMsg">¿Algo que quieras contarnos?</span><textarea name="mensaje" maxlength="2000"></textarea></label>
+      </div>
+      <label class="hp" aria-hidden="true">Web<input name="web" tabindex="-1" autocomplete="off"></label>
+      <label class="chk"><input type="checkbox" name="acepta" required><span data-i18n="fConsent">Acepto que Lemon Talent guarde mis datos para esta y futuras búsquedas. Puedo pedir que los borren cuando quiera.</span></label>
+      <p class="ferr" id="apErr" role="alert"></p>
+      <button class="btn btn-violet" type="submit" id="apSend" style="justify-content:center"><span data-i18n="fSend">Enviar postulación</span></button>
+    </form>
+    <div class="apply-ok" id="applyOk" hidden>
+      <div class="ok-ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
+      <h3 data-i18n="okTitle">Listo, gracias</h3>
+      <p data-i18n="okText">Recibimos tu postulación. Si tu perfil encaja, alguien del equipo de Lemon te va a contactar.</p>
+      <button type="button" class="btn btn-violet" id="apDone" data-i18n="okClose">Cerrar</button>
+    </div>
+  </dialog>
+
+  <section class="card paper pad" id="por-que" aria-labelledby="pq">
+    <div class="head-row">
+      <h2 class="h-display h2 rv" id="pq" data-i18n="whyTitle">¿Por qué Lemon?</h2>
+    </div>
+    <div class="values">
+      <div class="val rv" style="background:#fff"><div class="ill"><img src="../assets/ill5.png" alt="" aria-hidden="true"></div><h3 data-i18n="v1t">Dinamismo</h3><p data-i18n="v1p">Nos movemos rápido y entregamos resultados de calidad.</p></div>
+      <div class="val rv d1" style="background:#fff"><div class="ill"><img src="../assets/ill2.png" alt="" aria-hidden="true"></div><h3 data-i18n="v2t">Compromiso</h3><p data-i18n="v2p">Nos involucramos a fondo. Cuando otros paran, nosotros seguimos adelante.</p></div>
+      <div class="val rv d2" style="background:#fff"><div class="ill"><img src="../assets/ill3.png" alt="" aria-hidden="true"></div><h3 data-i18n="v3t">Versatilidad</h3><p data-i18n="v3p">Trabajamos con startups desde sus comienzos y nos adaptamos a los cambios constantes que atraviesan.</p></div>
+      <div class="val rv d3" style="background:#fff"><div class="ill"><img src="../assets/ill1.png" alt="" aria-hidden="true"></div><h3 data-i18n="v4t">Transparencia</h3><p data-i18n="v4p">Nuestro interés es siempre genuino: construimos relaciones transparentes y duraderas.</p></div>
+    </div>
+  </section>
+
+  <section class="card white pad" id="equipo" aria-labelledby="eq">
+    <p class="label rv" data-i18n="teamLabel">Nuestro equipo</p>
+    <h2 class="h-display h2 rv d1" id="eq" style="margin-top:22px" data-i18n="teamTitle">El equipo detrás de cada búsqueda</h2>
+    <div class="team" id="team"></div>
+    <script>
+    // Para sumar a alguien al equipo: subí la foto a assets/ y agregá una línea acá.
+    var EQUIPO = [
+      { nombre: "Paula Schattner", rol: "Founder & Talent Recruiter", foto: "../assets/p_paula.png", linkedin: "" },
+      { nombre: "Magalí Groisman", rol: "Consultant & Talent Strategy", foto: "../assets/p_magali.png", linkedin: "" }
+    ];
+    (function(){
+      var box=document.getElementById('team');
+      EQUIPO.forEach(function(p,i){
+        var c=document.createElement('div'); c.className='person rv'+(i%3?' d'+(i%3):'');
+        var ph=document.createElement('div'); ph.className='ph';
+        var im=document.createElement('img'); im.src=p.foto; im.alt=p.nombre; im.loading='lazy'; ph.appendChild(im);
+        var t=document.createElement('div');
+        var n=document.createElement('span'); n.className='num'; n.textContent=String(i+1).padStart(2,'0');
+        var h=document.createElement('h3'); h.textContent=p.nombre;
+        var r=document.createElement('p'); r.textContent=p.rol;
+        t.appendChild(n); t.appendChild(h); t.appendChild(r);
+        if(p.linkedin){var a=document.createElement('a'); a.className='li'; a.href=p.linkedin; a.target='_blank'; a.rel='noopener'; a.textContent='LinkedIn ↗'; t.appendChild(a);}
+        c.appendChild(ph); c.appendChild(t); box.appendChild(c);
+      });
+    })();
+    </script>
+  </section>
+
+  <section class="card paper pad" aria-labelledby="num">
+    <h2 class="h-display h2 rv" id="num" style="max-width:860px" data-i18n="statTitle">Experiencia en startups, mirada de largo plazo</h2>
+    <div class="stats">
+      <div class="stat rv"><div class="v"><span>+</span><span class="count" data-to="340">340</span></div><div class="d" data-i18n="st1">búsquedas cerradas desde 2019</div></div>
+      <div class="stat rv d1"><div class="v"><span>+</span><span class="count" data-to="40">40</span></div><div class="d" data-i18n="st2">empresas confiaron en Lemon</div></div>
+      <div class="stat rv d2"><div class="v"><span class="count" data-to="8">8</span><span style="font-size:.45em" data-i18n="st3a"> de 10</span></div><div class="d" data-i18n="st3">clientes vuelven a buscar con nosotros</div></div>
+    </div>
+  </section>
+
+  <section class="card lav pad" id="casos" aria-labelledby="cr">
+    <p class="label rv" id="cr" data-i18n="casLabel">Casos reales</p>
+    <h2 class="h-display h2 rv d1" style="margin-top:22px;max-width:900px" data-i18n="casTitle">Lo que dicen los equipos que armamos juntos</h2>
+    <div class="tmarquee rv">
+      <div class="ttrack" id="ttrack">
+        <figure class="tcard"><blockquote data-i18n="q1">“Lemon nos acompañó desde que Rappi desembarcó en Argentina. En conjunto cubrimos 185 puestos de áreas staff y de negocio, funciones que fueron clave para alcanzar objetivos de crecimiento sumamente agresivos y en un período corto de tiempo.”</blockquote><figcaption><img src="../assets/c_rappi.svg" alt="Rappi"><span><strong>Matías Casoy</strong>General Manager ARG &amp; UY</span></figcaption></figure>
+        <figure class="tcard"><blockquote data-i18n="q2">“Un placer trabajar con Lemon. Lograron captar rápidamente el perfil de gente que necesitábamos y nos presentaron candidatos con mucho fit cultural. Logramos reducir un 80% nuestro tiempo de contratación gracias a Lemon.”</blockquote><figcaption><img src="../assets/c_prometeo.png" alt="Prometeo"><span><strong>Martín Pilossof</strong>Co-founder</span></figcaption></figure>
+        <figure class="tcard"><blockquote data-i18n="q3">“Lemon fue nuestro aliado indispensable para poder escalar los equipos y conseguir los perfiles necesarios para los desafíos que enfrentamos. El trato personalizado y la velocidad para conseguir los perfiles es el diferencial que se necesita en un mercado dinámico.”</blockquote><figcaption><img src="../assets/c_valiu.png" alt="Valiu"><span><strong>Lautaro Aguiar</strong>Head of Growth</span></figcaption></figure>
+        <figure class="tcard"><blockquote data-i18n="q4">“Con Lemon sentimos que podemos llevar adelante procesos de búsqueda que nos representan. Entendieron nuestro fit cultural y se sienten como parte del equipo.”</blockquote><figcaption><img src="../assets/c_kolibri.png" alt="Kolibri"><span><strong>Mateo Saavedra</strong>Co-founder &amp; Head of Finance &amp; People</span></figcaption></figure>
+        <figure class="tcard"><blockquote data-i18n="q5">“Lemon nos acompaña en la creación del equipo que le da forma y empuje a Calm para seguir creciendo. Lograron entender rápidamente nuestras necesidades cuando al comienzo resultaba difícil poner en palabras qué perfiles íbamos a salir a buscar.”</blockquote><figcaption><img src="../assets/c_calm.svg" alt="Calm"><span><strong>Matías Burstein</strong>CEO &amp; Co-Founder</span></figcaption></figure>
+        <figure class="tcard"><blockquote data-i18n="q6">“Tras abrir oficinas en países de Latam tuvimos el desafío de contratar a distancia el equipo comercial. En Lemon encontramos apoyo en las búsquedas, flexibilidad y rápida adaptación a nuestro mercado, que en otras empresas más consolidadas no encontramos.”</blockquote><figcaption><span class="co">Debmedia</span><span><strong>Juan Martín Balan</strong>Co-founder &amp; Sales Director</span></figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="card cta pad" id="contacto" aria-labelledby="ctah">
+    <div class="orb a" aria-hidden="true"></div>
+    <div class="ring r1" aria-hidden="true"></div>
+    <h2 class="h-display rv" id="ctah" data-i18n="ctaTitle">Conectamos líderes emprendedores con los mejores talentos.</h2>
+    <div class="row rv d1">
+      <a class="btn btn-lime" href="mailto:paula.schattner@lemontalent.com.ar"><span data-i18n="ctaContact">Contactanos</span> <span class="arrow">→</span></a>
+      <a class="btn btn-ghost" href="#busquedas" data-i18n="ctaApply2">Quiero aplicar</a>
+    </div>
+    <p class="contact rv d2"><a href="mailto:paula.schattner@lemontalent.com.ar">paula.schattner@lemontalent.com.ar</a> · <a href="https://wa.me/5491151524646" target="_blank" rel="noopener">+54 9 11 5152 4646</a></p>
+  </section>
+
+  <footer class="card foot">
+    <div class="fcols">
+      <div class="col brand">
+        <img src="../assets/logo_violet.png" alt="Lemon Talent">
+        <p class="tagline" data-i18n="heroSub">Hacemos recruiting para startups, compañías digitales y equipos en transformación.</p>
+      </div>
+      <div class="col"><span class="t" data-i18n="fExplore">Explorar</span><a href="#por-que" data-i18n="nav1">¿Por qué Lemon?</a><a href="#clientes" data-i18n="nav2">Clientes</a><a href="#equipo" data-i18n="nav3">Equipo</a><a href="#casos" data-i18n="casLabel">Casos reales</a></div>
+      <div class="col"><span class="t" data-i18n="nav4">Contacto</span><a href="mailto:paula.schattner@lemontalent.com.ar">paula.schattner@lemontalent.com.ar</a><a href="https://wa.me/5491151524646" target="_blank" rel="noopener">+54 9 11 5152 4646</a></div>
+      <div class="col"><span class="t" data-i18n="fConnect">Conectar</span><a href="https://www.linkedin.com/company/lemon-talent/">LinkedIn</a><a href="https://www.instagram.com/lemontalent.ar/">Instagram</a></div>
+    </div>
+    <div class="legal" data-i18n="legal">© Lemon Talent 2026. Todos los derechos reservados.</div>
+  </footer>
+</div>
+
+<script>
+var EN={
+  nav1:"Why Lemon",nav2:"Clients",nav3:"Team",nav4:"Contact",ctaContact:"Get in touch",ctaApply:"Apply",ctaApply2:"Join our talent network",
+  h1:"Where ambitious founders meet exceptional <em>talent</em>.",
+  heroSub:"Recruiting for startups, digital-first companies and teams going through change.",
+  heroCta:"Tell us who you’re hiring",heroLink:"See who we work with ↓",
+  ann:"185 roles filled for Rappi since its launch in Argentina.",annLink:"Read client stories",
+  cliLabel:"Trusted by",whatLabel:"What we do",
+  whatText:"Success and growth depend, above all, on having the right people around you. That’s what we do: recruiting. We build great teams to create great projects.",
+  howLabel:"How we work",howTitle:"We work as an extension of your team",
+  d1:"Understanding your business and the role",d2:"Active search",d3:"Interviews & assessment",d4:"Finalist presentation",d5:"Support through onboarding",
+  s1t:"Partnerships, not transactions",s1p:"We stay with each team over time, as the company grows.",
+  s2t:"Great teams, great projects",s2p:"We immerse ourselves in your business and culture before we start searching, so the people we bring in truly fit.",
+  s3t:"We always go the extra mile",s3p:"We get involved, we feel part of your team, and we always give a little more.",
+  forTitle:"Talent, speed and commitment, all in one place",
+  c1k:"For companies",c1t:"Hiring for startups and fast-changing teams",c1p:"We define the role with you, move fast, and stay with you through the whole hiring process, at every stage of the company. Even when you’re not sure yet what profile you need: we help you define it and find the people who fit where your business really is today.",
+  c2k:"For candidates",c2t:"Find the team where you’ll grow",c2p:"Join our network and be the first to hear about roles that match your profile.",
+  arTitle:"Hiring across every part of the business",arLink:"Tell us who you need",
+  a1:"Sales",a2:"Marketing & Growth",a3:"Design & Creative",a3t1:"Graphic Design",a3t2:"Creative Writing",a4:"Finance & Admin",a4t3:"Treasury",a4t4:"FP&A",a5:"Operations & Supply Chain",a5t2:"Logistics",a5t3:"Procurement",a6:"Tech & Data",a7:"People & Customer",a8:"Leadership",
+  whyTitle:"Why Lemon",
+  v1t:"Agility",v1p:"We move fast without cutting corners.",v2t:"Commitment",v2p:"We go all in. When others stop, we keep going.",
+  v3t:"Versatility",v3p:"We’ve worked with startups from day one, and we adapt as fast as they change.",v4t:"Transparency",v4p:"Our interest is always genuine, which is why our relationships are honest and built to last.",
+  teamLabel:"Our team",teamTitle:"The team behind every search",
+  statTitle:"Startup experience, long-term thinking",st1:"roles filled since 2019",st2:"companies have trusted Lemon",st3a:" in 10",st3:"clients come back to hire with us again",
+  casLabel:"Client stories",casTitle:"What the teams we’ve built say about us",
+  q1:"“Lemon has been with us since Rappi launched in Argentina. Together we filled 185 roles across corporate and business teams, positions that were key to hitting extremely aggressive growth targets in a very short time.”",
+  q2:"“A pleasure to work with. Lemon quickly understood the kind of people we needed and brought us candidates with a strong cultural fit. Thanks to them, we cut our time-to-hire by 80%.”",
+  q3:"“Lemon was an essential partner in scaling our teams and finding the profiles our challenges called for. Their personal approach and the speed at which they deliver are exactly what a fast-moving market demands.”",
+  q4:"“With Lemon, our hiring processes truly reflect who we are. They get our culture and feel like part of the team.”",
+  q5:"“Lemon has helped us build the team that shapes Calm and drives its growth. They understood our needs quickly, even early on, when we struggled to put into words the profiles we were looking for.”",
+  q6:"“After opening offices across Latin America, we had to hire our sales team remotely. Lemon gave us support, flexibility and a quick grasp of our market that we didn’t find in larger, more established firms.”",
+  ctaTitle:"Where ambitious founders meet exceptional talent.",
+  jobsLabel:"Open roles",jobsTitle:"Join the teams we’re building",jobsGeneral:"Share your profile",apTitle:"Apply",fRole:"Role you’re applying for",fName:"Full name",fPhone:"Phone",fCity:"City and country of residence",fCityPh:"e.g. Mexico City, Mexico",fCv:"CV (PDF, up to 5 MB)",fCvHint:"Optional if your LinkedIn is up to date.",fMsg:"Anything you’d like to tell us?",fConsent:"I agree that Lemon Talent may store my details for this and future roles. I can ask for them to be deleted at any time.",fSend:"Send application",okTitle:"Thank you",okText:"We’ve received your application. If your profile is a fit, someone from the Lemon team will be in touch.",okClose:"Close",
+  fExplore:"Explore",fConnect:"Follow us",legal:"© Lemon Talent 2026. All rights reserved."
+};
+(function(){
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var h1=document.getElementById('h1'), big=document.getElementById('bigtext'), hero=document.getElementById('hero');
+
+  function wrapWords(node){
+    Array.prototype.slice.call(node.childNodes).forEach(function(ch){
+      if(ch.nodeType===3){
+        var frag=document.createDocumentFragment();
+        ch.textContent.split(/(\s+)/).forEach(function(t){
+          if(!t) return;
+          if(/^\s+$/.test(t)){frag.appendChild(document.createTextNode(t));return;}
+          var w=document.createElement('span');w.className='w';var i=document.createElement('span');i.textContent=t;w.appendChild(i);frag.appendChild(w);
+        });
+        node.replaceChild(frag,ch);
+      } else if(ch.nodeType===1){
+        var w=document.createElement('span');w.className='w';node.replaceChild(w,ch);w.appendChild(ch);
+      }
+    });
+    var inner=node.querySelectorAll('.w>*');
+    for(var i=0;i<inner.length;i++){inner[i].style.transitionDelay=(0.08*i)+'s';}
+  }
+  var spans=[];
+  function splitBig(){
+    var words=big.textContent.trim().split(/\s+/);big.innerHTML='';
+    words.forEach(function(w,ix){var s=document.createElement('span');s.className='lit';s.textContent=w;big.appendChild(s);if(ix<words.length-1)big.appendChild(document.createTextNode(' '));});
+    spans=big.querySelectorAll('.lit');
+  }
+
+  // Marquee clones
+  ['track','ttrack','atrack'].forEach(function(id){
+    var t=document.getElementById(id); if(!t) return;
+    Array.prototype.slice.call(t.children).forEach(function(k){var c=k.cloneNode(true);c.setAttribute('aria-hidden','true');t.appendChild(c);});
+  });
+
+  // i18n
+  var ES={};
+  document.querySelectorAll('[data-i18n]').forEach(function(el){var k=el.getAttribute('data-i18n');if(!(k in ES))ES[k]=el.textContent;});
+  document.querySelectorAll('[data-i18n-html]').forEach(function(el){ES[el.getAttribute('data-i18n-html')]=el.innerHTML;});
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){ES[el.getAttribute('data-i18n-ph')]=el.placeholder;});
+  var lang='es';
+  function setLang(l,first){
+    lang=l; var D=l==='en'?EN:ES;
+    document.documentElement.lang=l;
+    document.querySelectorAll('[data-i18n]').forEach(function(el){var k=el.getAttribute('data-i18n');if(D[k]!=null)el.textContent=D[k];});
+    document.querySelectorAll('[data-i18n-html]').forEach(function(el){var k=el.getAttribute('data-i18n-html');if(D[k]!=null)el.innerHTML=D[k];});
+    document.querySelectorAll('[data-i18n-ph]').forEach(function(el){var k=el.getAttribute('data-i18n-ph');if(D[k]!=null)el.placeholder=D[k];});
+    document.title = l==='en' ? 'Lemon Talent — Recruiting for startups and digital-first companies' : 'Lemon Talent — Recruiting para startups y compañías digitales';
+    document.querySelectorAll('.lang-menu button').forEach(function(b){b.setAttribute('aria-checked',b.getAttribute('data-lang')===l?'true':'false');});
+    wrapWords(h1); splitBig();
+    if(!first){hero.classList.add('in');onScroll();}
+    try{document.dispatchEvent(new Event('lt-lang'));}catch(e){}
+    try{localStorage.setItem('lt-lang',l);}catch(e){}
+  }
+  var start='es';
+  try{ if(location.hash==='#en') start='en'; else if(localStorage.getItem('lt-lang')==='en') start='en'; }catch(e){}
+  setLang(start,true);
+  var langBtn=document.getElementById('langBtn'), langMenu=document.getElementById('langMenu');
+  function langOpen(o){langMenu.hidden=!o;langBtn.setAttribute('aria-expanded',o?'true':'false');}
+  langBtn.addEventListener('click',function(e){e.stopPropagation();langOpen(langMenu.hidden);if(!langMenu.hidden){var c=langMenu.querySelector('[aria-checked="true"]');if(c)c.focus();}});
+  langMenu.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){setLang(b.getAttribute('data-lang'));langOpen(false);langBtn.focus();});});
+  document.addEventListener('click',function(e){if(!e.target.closest('#lang'))langOpen(false);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!langMenu.hidden){langOpen(false);langBtn.focus();}});
+  requestAnimationFrame(function(){setTimeout(function(){hero.classList.add('in');},80);});
+
+  // Reveal
+  var els=document.querySelectorAll('.rv');
+  if('IntersectionObserver' in window && !reduce){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.15,rootMargin:'0px 0px -40px 0px'});
+    els.forEach(function(el){io.observe(el);});
+  } else { els.forEach(function(el){el.classList.add('in');}); }
+
+  // Count up
+  var counts=document.querySelectorAll('.count');
+  function runCount(el){var to=+el.getAttribute('data-to'),t0=null,dur=1600;function st(ts){if(!t0)t0=ts;var p=Math.min(1,(ts-t0)/dur);el.textContent=Math.round(to*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(st);}requestAnimationFrame(st);}
+  if('IntersectionObserver' in window && !reduce){
+    var co=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){runCount(e.target);co.unobserve(e.target);}});},{threshold:.6});
+    counts.forEach(function(c){c.textContent='0';co.observe(c);});
+  }
+
+  // Diagram
+  var dg=document.getElementById('diagram'), discs=dg.querySelectorAll('.disc'), chips=dg.querySelectorAll('.dchip');
+  var wide=window.matchMedia('(min-width:901px)');
+  function layoutDiagram(){
+    var r=dg.getBoundingClientRect(),vh=window.innerHeight;
+    var p=reduce?1:Math.max(0,Math.min(1,(vh-r.top)/(vh*0.85)));
+    var gap=(wide.matches?16:10)+(wide.matches?88:52)*p;
+    for(var i=0;i<discs.length;i++){
+      var y=(i-2)*gap;
+      discs[i].style.transform='translateY('+y+'px)';
+      discs[i].style.zIndex=10-i;
+      if(chips[i]){chips[i].style.top='calc(50% + '+y+'px)';chips[i].classList.toggle('on',p>0.35+i*0.11);}
+    }
+  }
+
+  // Scroll-driven
+  var nav=document.getElementById('nav'), orbs=document.querySelectorAll('[data-par]'), ticking=false;
+  function onScroll(){
+    var y=window.scrollY||window.pageYOffset;
+    nav.classList.toggle('scrolled',y>40);
+    if(!reduce){orbs.forEach(function(o){o.style.translate='0 '+(y*parseFloat(o.getAttribute('data-par')))+'px';});}
+    var r=big.getBoundingClientRect(),vh=window.innerHeight;
+    var p=reduce?1:Math.max(0,Math.min(1,(vh*0.85-r.top)/(r.height+vh*0.35)));
+    var n=Math.round(p*spans.length);
+    for(var k=0;k<spans.length;k++){spans[k].style.color=k<n?'var(--ink)':'';}
+    layoutDiagram();
+    ticking=false;
+  }
+  window.addEventListener('scroll',function(){if(!ticking){ticking=true;requestAnimationFrame(onScroll);}},{passive:true});
+  window.addEventListener('resize',onScroll);
+  onScroll();
+
+  // Mobile menu
+  var burger=document.getElementById('burger');
+  burger.addEventListener('click',function(){var o=nav.classList.toggle('open');burger.setAttribute('aria-expanded',o?'true':'false');});
+  nav.querySelectorAll('.nav-links a').forEach(function(a){a.addEventListener('click',function(){nav.classList.remove('open');burger.setAttribute('aria-expanded','false');});});
+})();
+</script>
+<script>
+(function(){
+  var API = (window.LT_API_BASE || '');
+  var T = {
+    es:{apply:'Postularme',more:'Ver descripción',empty:'Ahora no tenemos búsquedas publicadas. Dejanos tu perfil y te avisamos cuando aparezca algo para vos.',
+        fail:'No pudimos cargar las búsquedas en este momento. Probá de nuevo en un rato o dejanos tu perfil.',general:'Perfil general',pick:'Elegí una búsqueda',generalOpt:'Ninguna en particular (perfil general)',eBusq:'Elegí la búsqueda a la que aplicás.',eCity:'Contanos en qué ciudad y país vivís.',
+        eName:'Completá tu nombre.',eMail:'Revisá el email.',eLi:'Pegá el link a tu perfil de LinkedIn.',eCv:'El CV tiene que ser un PDF de hasta 5 MB.',eOk:'Necesitamos tu consentimiento para guardar tus datos.',eSend:'No pudimos enviar la postulación. Probá de nuevo en un rato.',sending:'Enviando…'},
+    en:{apply:'Apply',more:'See description',empty:'There are no open roles published right now. Leave us your profile and we’ll reach out when something fits.',
+        fail:'We couldn’t load the open roles right now. Try again later or leave us your profile.',general:'General application',pick:'Choose a role',generalOpt:'None in particular (general profile)',eBusq:'Please choose the role you’re applying for.',eCity:'Please tell us your city and country.',
+        eName:'Please enter your name.',eMail:'Please check your email.',eLi:'Please paste your LinkedIn profile link.',eCv:'Your CV must be a PDF up to 5 MB.',eOk:'We need your consent to store your details.',eSend:'We couldn’t send your application. Please try again later.',sending:'Sending…'}
+  };
+  function L(){ return T[document.documentElement.lang==='en'?'en':'es']; }
+  var box=document.getElementById('jobs'), dlg=document.getElementById('applyDlg'), form=document.getElementById('applyForm'),
+      ok=document.getElementById('applyOk'), err=document.getElementById('apErr'), roleEl=document.getElementById('apRole'),
+      sel=document.getElementById('apSelect'), send=document.getElementById('apSend');
+  var data=null, failed=false;
+
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+  function render(){
+    var t=L(); box.innerHTML='';
+    if(failed||!data||!data.length){
+      var w=el('div','jobs-empty'); w.appendChild(el('p',null,failed?t.fail:t.empty));
+      var b=el('button','btn btn-violet'); b.type='button'; b.textContent=document.querySelector('[data-i18n="jobsGeneral"]').textContent; b.setAttribute('data-apply','');
+      w.appendChild(b); box.appendChild(w); return;
+    }
+    data.forEach(function(j){
+      var c=el('article','job');
+      var left=el('div');
+      left.appendChild(el('h3',null,j.puesto));
+      if(j.empresa){
+        var co=el('div','co');
+        if(j.link){var a=el('a',null,j.empresa);a.href=j.link;a.target='_blank';a.rel='noopener noreferrer';co.appendChild(a);co.appendChild(document.createTextNode(' ↗'));}
+        else co.textContent=j.empresa;
+        if(j.rubro) co.appendChild(el('span','rub',' · '+j.rubro));
+        left.appendChild(co);
+      }
+      var meta=el('div','meta');
+      [j.area,j.seniority,j.ubicacion].forEach(function(m){if(m)meta.appendChild(el('span',null,m));});
+      if(meta.children.length) left.appendChild(meta);
+      c.appendChild(left);
+      var b=el('button','btn btn-violet'); b.type='button'; b.setAttribute('data-apply',j.id); b.setAttribute('data-role',j.puesto+(j.empresa?' · '+j.empresa:''));
+      b.innerHTML='<span></span> <span class="arrow">→</span>'; b.firstChild.textContent=t.apply;
+      c.appendChild(b);
+      if(j.descripcion){
+        var d=el('details'); var s=el('summary'); s.textContent=t.more+' '; var ch=el('span','chev','▾'); ch.style.transition='transform .3s'; s.appendChild(ch);
+        d.appendChild(s); d.appendChild(el('div','txt',j.descripcion)); c.appendChild(d);
+      }
+      box.appendChild(c);
+    });
+  }
+  function load(){
+    fetch(API+'/api/publico/busquedas',{headers:{'Accept':'application/json'}})
+      .then(function(r){if(!r.ok)throw 0;return r.json();})
+      .then(function(j){data=(j&&j.busquedas)||[];failed=false;render();})
+      .catch(function(){failed=true;render();});
+  }
+
+  function fillSelect(){
+    var t=L(); sel.innerHTML='';
+    var ph=el('option',null,t.pick); ph.value=''; ph.disabled=true; sel.appendChild(ph);
+    (data||[]).forEach(function(j){var o=el('option',null,j.puesto+(j.empresa?' · '+j.empresa:'')); o.value=j.id; sel.appendChild(o);});
+    var g=el('option',null,t.generalOpt); g.value='general'; sel.appendChild(g);
+  }
+  function syncRole(){
+    var o=sel.options[sel.selectedIndex];
+    roleEl.textContent = !sel.value ? '' : (sel.value==='general' ? L().general : o.textContent);
+  }
+  sel.addEventListener('change',syncRole);
+  function open(id,role){
+    form.reset(); err.textContent=''; fillSelect();
+    sel.value = id ? id : (id==='' ? 'general' : ''); if(sel.selectedIndex<0) sel.value='';
+    syncRole();
+    form.hidden=false; ok.hidden=true; send.disabled=false;
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+    setTimeout(function(){var f=form.querySelector('input[name=nombre]'); if(f)f.focus();},50);
+  }
+  function close(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
+  document.addEventListener('click',function(e){
+    var a=e.target.closest('[data-apply]'); if(!a) return;
+    e.preventDefault(); open(a.getAttribute('data-apply'),a.getAttribute('data-role'));
+  });
+  document.getElementById('apClose').addEventListener('click',close);
+  document.getElementById('apDone').addEventListener('click',close);
+
+  form.addEventListener('submit',function(e){
+    e.preventDefault(); var t=L(), f=form.elements; err.textContent='';
+    if(!sel.value) return err.textContent=t.eBusq;
+    if(!f.nombre.value.trim()) return err.textContent=t.eName;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.value.trim())) return err.textContent=t.eMail;
+    if(!/linkedin\.com\//i.test(f.linkedin.value)) return err.textContent=t.eLi;
+    if(!f.ubicacion.value.trim()) return err.textContent=t.eCity;
+    var cv=f.cv.files[0]; if(cv && (cv.size>5*1024*1024 || !/pdf$/i.test(cv.type||cv.name))) return err.textContent=t.eCv;
+    if(!f.acepta.checked) return err.textContent=t.eOk;
+    var payload={busquedaId:sel.value==='general'?'':sel.value,ubicacion:f.ubicacion.value.trim(),nombre:f.nombre.value.trim(),email:f.email.value.trim(),telefono:f.telefono.value.trim(),
+      linkedin:f.linkedin.value.trim(),mensaje:f.mensaje.value.trim(),acepta:true,web:f.web.value,idioma:document.documentElement.lang||'es'};
+    send.disabled=true; var lbl=send.firstChild.textContent; send.firstChild.textContent=t.sending;
+    var leerCv=cv?new Promise(function(ok,ko){var rd=new FileReader();rd.onload=function(){ok({nombre:cv.name,base64:String(rd.result).split(',')[1]});};rd.onerror=ko;rd.readAsDataURL(cv);}):Promise.resolve(null);
+    leerCv.then(function(c){ if(c) payload.cv=c;
+      return fetch(API+'/api/publico/postular',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); })
+      .then(function(r){return r.json().catch(function(){return {};}).then(function(j){if(!r.ok||!j.ok)throw j;return j;});})
+      .then(function(){form.hidden=true;ok.hidden=false;})
+      .catch(function(j){err.textContent=(j&&j.error)||t.eSend;})
+      .then(function(){send.disabled=false;send.firstChild.textContent=lbl;});
+  });
+
+  document.addEventListener('lt-lang',render);
+  load();
+})();
+</script>
+</body>
+</html>

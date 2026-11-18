@@ -67,11 +67,12 @@ a{color:var(--violet)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .hero-in{position:relative;width:100%;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:40px;align-items:end;padding:160px clamp(22px,6vw,96px) clamp(56px,7vw,96px)}
 .hero h1{font-size:clamp(46px,7.4vw,112px)}
-.hero h1 .w{display:inline-block;overflow:hidden;vertical-align:bottom;padding-bottom:.08em}
+.hero h1 .w{display:inline-block;overflow:hidden;vertical-align:bottom;padding:0 .1em .16em;margin:0 -.1em -.16em}
 .hero h1 .w>*{display:inline-block;transform:translateY(105%);transition:transform 1s var(--ease)}
 .hero.in h1 .w>*{transform:none}
 .hero h1 em{font-style:italic;color:var(--violet)}
-.hero-sub{font-size:clamp(18px,1.6vw,22px);line-height:1.5;color:var(--ink-2);max-width:560px;margin:28px 0 32px}
+.hero-sub,.tagline{font-size:clamp(18px,1.5vw,20px);font-weight:400;line-height:1.5;color:var(--ink-2);max-width:560px;margin:28px 0 32px}
+.foot .tagline{margin:14px 0 0;max-width:340px}
 .hero-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .hero-ill{justify-self:end;width:min(100%,460px);animation:float 7s ease-in-out infinite}
 @keyframes float{50%{transform:translateY(-14px)}}
@@ -84,7 +85,7 @@ a{color:var(--violet)}
 /* LOGOS */
 .logos{background:var(--paper)}
 .marquee{overflow:hidden;-webkit-mask:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent);mask:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent)}
-.track{display:flex;width:max-content;animation:marquee 45s linear infinite}
+.track{display:flex;width:max-content;animation:marquee 95s linear infinite}
 .marquee:hover .track{animation-play-state:paused}
 .track .lg{flex:none;display:flex;align-items:center;justify-content:center;height:96px;padding:0 44px;border-right:1px solid var(--line)}
 .track .lg img{object-fit:contain;filter:grayscale(1) contrast(1.1);opacity:.6;transition:filter .4s,opacity .4s}
@@ -167,6 +168,8 @@ a{color:var(--violet)}
 .cta h2{position:relative;font-size:clamp(40px,5.4vw,82px);max-width:1000px}
 .cta .row{position:relative;display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
 .cta .contact{position:relative;font-size:15px;color:#D8CCF5}
+.cta .contact a{color:#fff;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(255,255,255,.4)}
+.cta .contact a:hover{text-decoration-color:#fff}
 
 /* FOOTER */
 .foot{background:#fff;padding:64px clamp(22px,6vw,96px) 32px}
@@ -195,10 +198,18 @@ a{color:var(--violet)}
 .hero-meta .hero-sub{margin:0}
 
 /* LANG */
-.lang{display:inline-flex;align-items:center;border:1px solid rgba(34,28,56,.16);border-radius:999px;padding:3px;background:rgba(255,255,255,.5)}
-.lang button{border:0;background:transparent;font:500 13px var(--sans);color:var(--ink-2);min-width:40px;height:38px;border-radius:999px;cursor:pointer;transition:background .3s,color .3s}
-.lang button[aria-pressed="true"]{background:var(--ink);color:#fff}
-@media (max-width:900px){.lang button{min-width:36px}}
+.lang{position:relative}
+.lang-btn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 16px;border:1px solid rgba(34,28,56,.16);border-radius:999px;background:rgba(255,255,255,.6);font:500 14px var(--sans);color:var(--ink);cursor:pointer;transition:background .3s}
+.lang-btn:hover{background:#fff}
+.lang-btn .caret{transition:transform .3s var(--ease)}
+.lang-btn[aria-expanded="true"] .caret{transform:rotate(180deg)}
+.lang-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;background:#fff;border-radius:16px;box-shadow:0 16px 40px rgba(34,28,56,.14);padding:6px;display:flex;flex-direction:column;z-index:60}
+.lang-menu[hidden]{display:none}
+.lang-menu button{border:0;background:transparent;text-align:left;font:500 15px var(--sans);color:var(--ink);padding:12px 14px;border-radius:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.lang-menu button:hover{background:var(--bg)}
+.lang-menu button[aria-checked="true"]{color:var(--violet)}
+.lang-menu button[aria-checked="true"]::after{content:"✓";font-size:14px}
+@media (max-width:900px){.lang-btn span{display:none}.lang-btn{padding:0 12px}}
 
 /* PROCESS DIAGRAM */
 .diagram{position:relative;height:600px;max-width:1100px;margin:72px auto 24px}
@@ -273,12 +284,13 @@ dialog.apply::backdrop{background:rgba(28,9,66,.45);backdrop-filter:blur(4px)}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .fgrid .full{grid-column:1/-1}
 .fgrid>*{min-width:0}
-.fld input,.fld textarea{width:100%;box-sizing:border-box}
+.fld input,.fld textarea,.fld select{width:100%;box-sizing:border-box}
 @media (max-width:560px){.fgrid{grid-template-columns:1fr}}
 .fld{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500}
-.fld input,.fld textarea{font:400 16px var(--sans);color:var(--ink);border:1px solid #D9D2E8;border-radius:12px;padding:12px 14px;background:#fff;min-height:46px}
+.fld input,.fld textarea,.fld select{font:400 16px var(--sans);color:var(--ink);border:1px solid #D9D2E8;border-radius:12px;padding:12px 14px;background:#fff;min-height:46px}
+.fld select{appearance:none;-webkit-appearance:none;padding-right:40px;background:#fff url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2348129E%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E") no-repeat right 16px center}
 .fld textarea{min-height:96px;resize:vertical}
-.fld input:focus,.fld textarea:focus{outline:2px solid var(--violet);outline-offset:1px;border-color:transparent}
+.fld input:focus,.fld textarea:focus,.fld select:focus{outline:2px solid var(--violet);outline-offset:1px;border-color:transparent}
 .fld .hint{font-weight:400;color:var(--muted);font-size:13px}
 .chk{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;color:var(--ink-2)}
 .chk input{width:20px;height:20px;margin-top:1px;accent-color:var(--violet);flex:none}
@@ -301,9 +313,16 @@ dialog.apply::backdrop{background:rgba(28,9,66,.45);backdrop-filter:blur(4px)}
     <a href="#contacto" data-i18n="nav4">Contacto</a>
   </div>
   <div class="nav-cta">
-    <div class="lang" role="group" aria-label="Idioma / Language">
-      <button type="button" data-lang="es" aria-pressed="true">ES</button>
-      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    <div class="lang" id="lang">
+      <button type="button" class="lang-btn" id="langBtn" aria-haspopup="true" aria-expanded="false" aria-controls="langMenu">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z"/></svg>
+        <span>Language</span>
+        <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="lang-menu" id="langMenu" role="menu" hidden>
+        <button type="button" role="menuitemradio" data-lang="es" aria-checked="true">Spanish</button>
+        <button type="button" role="menuitemradio" data-lang="en" aria-checked="false">English</button>
+      </div>
     </div>
     <a class="btn btn-violet" href="#contacto" data-i18n="ctaContact">Contactanos</a>
     <a class="btn btn-lime" href="#busquedas" data-i18n="ctaApply">Aplicá</a>
@@ -363,38 +382,38 @@ dialog.apply::backdrop{background:rgba(28,9,66,.45);backdrop-filter:blur(4px)}
     </div>
     <div class="what">
       <p class="label rv" data-i18n="whatLabel">Qué hacemos</p>
-      <p class="big" id="bigtext" data-i18n="whatText">Creemos que el éxito y el crecimiento dependen en gran medida de rodearse de las personas indicadas. Por eso armamos grandes equipos para crear grandes proyectos.</p>
+      <p class="big" id="bigtext" data-i18n="whatText">Creemos que el éxito y el crecimiento dependen en gran medida de rodearse de las personas indicadas. Hacemos recruiting. Armamos grandes equipos para crear grandes proyectos.</p>
     </div>
   </section>
 
   <section class="card dark pad" aria-labelledby="como">
     <p class="label rv" data-i18n="howLabel">Cómo lo hacemos</p>
-    <h2 class="h-display h2 rv d1" id="como" style="margin-top:22px;max-width:900px" data-i18n="howTitle">Nos sumamos a tu equipo como si fuera el nuestro</h2>
+    <h2 class="h-display h2 rv d1" id="como" style="margin-top:22px;max-width:900px" data-i18n="howTitle">Nos integramos a tu equipo como si fuera el nuestro</h2>
 
     <div class="diagram" id="diagram" aria-label="Proceso de búsqueda">
       <div class="dfloat">
         <div class="disc"></div><div class="disc"></div><div class="disc"></div><div class="disc"></div><div class="disc"></div>
       </div>
-      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg><span data-i18n="d1">Brief y perfil</span></span>
-      <span class="dchip r"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span data-i18n="d2">Sourcing activo</span></span>
-      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span data-i18n="d3">Entrevistas Lemon</span></span>
-      <span class="dchip r"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 1.8 6 5.5"/></svg><span data-i18n="d4">Terna al cliente</span></span>
-      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="d5">Seguimiento del ingreso</span></span>
+      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg><span data-i18n="d1">Entendemos tu negocio y el perfil</span></span>
+      <span class="dchip r"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span data-i18n="d2">Búsqueda activa</span></span>
+      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span data-i18n="d3">Entrevistas y evaluación</span></span>
+      <span class="dchip r"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 1.8 6 5.5"/></svg><span data-i18n="d4">Presentación de finalistas</span></span>
+      <span class="dchip l"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="d5">Acompañamiento hasta la incorporación</span></span>
     </div>
-    <div class="dsteps" aria-hidden="true"><span data-i18n="d1">Brief y perfil</span><span data-i18n="d2">Sourcing activo</span><span data-i18n="d3">Entrevistas Lemon</span><span data-i18n="d4">Terna al cliente</span><span data-i18n="d5">Seguimiento del ingreso</span></div>
+    <div class="dsteps" aria-hidden="true"><span data-i18n="d1">Entendemos tu negocio y el perfil</span><span data-i18n="d2">Búsqueda activa</span><span data-i18n="d3">Entrevistas y evaluación</span><span data-i18n="d4">Presentación de finalistas</span><span data-i18n="d5">Acompañamiento hasta la incorporación</span></div>
 
     <div class="stack">
       <div class="step">
         <span class="n">01</span>
-        <div><h3 data-i18n="s1t">Construimos relaciones duraderas</h3><p data-i18n="s1p">Acompañamos a cada empresa en sus distintas etapas, no solo en una búsqueda puntual.</p></div>
+        <div><h3 data-i18n="s1t">Construimos relaciones duraderas</h3><p data-i18n="s1p">Acompañamos a cada equipo en el tiempo, a medida que la compañía crece.</p></div>
       </div>
       <div class="step">
         <span class="n">02</span>
-        <div><h3 data-i18n="s2t">Grandes equipos para grandes proyectos</h3><p data-i18n="s2p">Entendemos el negocio y la cultura antes de salir a buscar, para presentar personas con fit real.</p></div>
+        <div><h3 data-i18n="s2t">Grandes equipos para grandes proyectos</h3><p data-i18n="s2p">Nos empapamos del negocio y de la cultura antes de salir a buscar, para sumar personas que realmente encajen.</p></div>
       </div>
       <div class="step">
         <span class="n">03</span>
-        <div><h3 data-i18n="s3t">Siempre el extra mile</h3><p data-i18n="s3p">Nos involucramos, nos sentimos parte y damos siempre un paso más.</p></div>
+        <div><h3 data-i18n="s3t">Damos siempre el extra mile</h3><p data-i18n="s3p">Nos involucramos, nos sentimos parte y damos siempre un poco más.</p></div>
       </div>
     </div>
   </section>
@@ -405,13 +424,13 @@ dialog.apply::backdrop{background:rgba(28,9,66,.45);backdrop-filter:blur(4px)}
       <div class="case rv" style="background:var(--lav)">
         <span class="k" style="color:var(--violet)" data-i18n="c1k">Para empresas</span>
         <h3 data-i18n="c1t">Recruiting para startups y equipos en transformación</h3>
-        <p data-i18n="c1p">Definimos el perfil con vos, nos movemos rápido y te presentamos candidatos con fit cultural para cada etapa de la compañía.</p>
+        <p data-i18n="c1p">Definimos el perfil con vos, nos movemos rápido y te acompañamos en todo el proceso de incorporación de tu equipo, en cada etapa de la compañía. Incluso cuando todavía no sabés bien qué perfil buscar: te ayudamos a definirlo y a encontrar a las personas que van a acompañar el momento real de tu negocio.</p>
         <a href="#contacto"><span data-i18n="ctaContact">Contactanos</span> <span class="arrow">→</span></a>
         <div class="blob" style="background:radial-gradient(circle,#B9A0EE,transparent 70%)" aria-hidden="true"></div>
       </div>
       <div class="case rv d1" id="aplica" style="background:var(--lime-soft)">
         <span class="k" style="color:#4A4D05" data-i18n="c2k">Para talentos</span>
-        <h3 data-i18n="c2t">Tu próximo desafío en una compañía que crece</h3>
+        <h3 data-i18n="c2t">Encontrá el equipo donde vas a crecer</h3>
         <p data-i18n="c2p">Sumate a nuestra red y enterate de las búsquedas que encajan con tu perfil.</p>
         <a href="#busquedas" style="color:var(--ink)"><span data-i18n="ctaApply">Aplicá</span> <span class="arrow">→</span></a>
         <div class="blob" style="background:radial-gradient(circle,#D4DA23,transparent 70%)" aria-hidden="true"></div>
@@ -457,11 +476,12 @@ dialog.apply::backdrop{background:rgba(28,9,66,.45);backdrop-filter:blur(4px)}
         <div><h3 id="apTitle" data-i18n="apTitle">Postulate</h3><p id="apRole"></p></div>
         <button type="button" class="xbtn" id="apClose" aria-label="Cerrar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
-      <input type="hidden" name="busquedaId" id="apBusq">
       <div class="fgrid">
+        <label class="fld full"><span data-i18n="fRole">Búsqueda a la que aplicás</span><select name="busqueda" id="apSelect" required></select></label>
         <label class="fld full"><span data-i18n="fName">Nombre y apellido</span><input name="nombre" required autocomplete="name"></label>
         <label class="fld"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
         <label class="fld"><span data-i18n="fPhone">Teléfono</span><input name="telefono" type="tel" autocomplete="tel"></label>
+        <label class="fld full"><span data-i18n="fCity">Ciudad y país de residencia</span><input name="ubicacion" required autocomplete="address-level2" data-i18n-ph="fCityPh" placeholder="Ej.: Ciudad de México, México"></label>
         <label class="fld full"><span>LinkedIn</span><input name="linkedin" type="url" required placeholder="https://www.linkedin.com/in/…"></label>
         <label class="fld full"><span data-i18n="fCv">CV (PDF, hasta 5 MB)</span><input name="cv" type="file" accept="application/pdf,.pdf"><span class="hint" data-i18n="fCvHint">Opcional si tu LinkedIn está actualizado.</span></label>
         <label class="fld full"><span data-i18n="fMsg">¿Algo que quieras contarnos?</span><textarea name="mensaje" maxlength="2000"></textarea></label>
@@ -482,7 +502,6 @@ dialog.apply::backdrop{background:rgba(28,9,66,.45);backdrop-filter:blur(4px)}
   <section class="card paper pad" id="por-que" aria-labelledby="pq">
     <div class="head-row">
       <h2 class="h-display h2 rv" id="pq" data-i18n="whyTitle">¿Por qué Lemon?</h2>
-      <div class="chips rv d1"><span class="chip">Startups</span><span class="chip" data-i18n="chip2">Compañías digitales</span><span class="chip" data-i18n="chip3">Equipos en transformación</span></div>
     </div>
     <div class="values">
       <div class="val rv" style="background:#fff"><div class="ill"><img src="assets/ill5.png" alt="" aria-hidden="true"></div><h3 data-i18n="v1t">Dinamismo</h3><p data-i18n="v1p">Nos movemos rápido y entregamos resultados de calidad.</p></div>
@@ -494,17 +513,30 @@ dialog.apply::backdrop{background:rgba(28,9,66,.45);backdrop-filter:blur(4px)}
 
   <section class="card white pad" id="equipo" aria-labelledby="eq">
     <p class="label rv" data-i18n="teamLabel">Nuestro equipo</p>
-    <h2 class="h-display h2 rv d1" id="eq" style="margin-top:22px" data-i18n="teamTitle">Las personas detrás de cada búsqueda</h2>
-    <div class="team">
-      <div class="person rv">
-        <div class="ph"><img src="assets/p_paula.png" alt="Paula Schattner"></div>
-        <div><span class="num">01</span><h3>Paula Schattner</h3><p>Founder &amp; Talent Recruiter</p></div>
-      </div>
-      <div class="person rv d1">
-        <div class="ph"><img src="assets/p_magali.png" alt="Magalí Groisman"></div>
-        <div><span class="num">02</span><h3>Magalí Groisman</h3><p>Consultant &amp; Talent Strategy</p></div>
-      </div>
-    </div>
+    <h2 class="h-display h2 rv d1" id="eq" style="margin-top:22px" data-i18n="teamTitle">El equipo detrás de cada búsqueda</h2>
+    <div class="team" id="team"></div>
+    <script>
+    // Para sumar a alguien al equipo: subí la foto a assets/ y agregá una línea acá.
+    var EQUIPO = [
+      { nombre: "Paula Schattner", rol: "Founder & Talent Recruiter", foto: "assets/p_paula.png", linkedin: "" },
+      { nombre: "Magalí Groisman", rol: "Consultant & Talent Strategy", foto: "assets/p_magali.png", linkedin: "" }
+    ];
+    (function(){
+      var box=document.getElementById('team');
+      EQUIPO.forEach(function(p,i){
+        var c=document.createElement('div'); c.className='person rv'+(i%3?' d'+(i%3):'');
+        var ph=document.createElement('div'); ph.className='ph';
+        var im=document.createElement('img'); im.src=p.foto; im.alt=p.nombre; im.loading='lazy'; ph.appendChild(im);
+        var t=document.createElement('div');
+        var n=document.createElement('span'); n.className='num'; n.textContent=String(i+1).padStart(2,'0');
+        var h=document.createElement('h3'); h.textContent=p.nombre;
+        var r=document.createElement('p'); r.textContent=p.rol;
+        t.appendChild(n); t.appendChild(h); t.appendChild(r);
+        if(p.linkedin){var a=document.createElement('a'); a.className='li'; a.href=p.linkedin; a.target='_blank'; a.rel='noopener'; a.textContent='LinkedIn ↗'; t.appendChild(a);}
+        c.appendChild(ph); c.appendChild(t); box.appendChild(c);
+      });
+    })();
+    </script>
   </section>
 
   <section class="card paper pad" aria-labelledby="num">
@@ -539,17 +571,17 @@ dialog.apply::backdrop{background:rgba(28,9,66,.45);backdrop-filter:blur(4px)}
       <a class="btn btn-lime" href="mailto:paula.schattner@lemontalent.com.ar"><span data-i18n="ctaContact">Contactanos</span> <span class="arrow">→</span></a>
       <a class="btn btn-ghost" href="#busquedas" data-i18n="ctaApply2">Quiero aplicar</a>
     </div>
-    <p class="contact rv d2">paula.schattner@lemontalent.com.ar · +54 9 11 5152 4646</p>
+    <p class="contact rv d2"><a href="mailto:paula.schattner@lemontalent.com.ar">paula.schattner@lemontalent.com.ar</a> · <a href="https://wa.me/5491151524646" target="_blank" rel="noopener">+54 9 11 5152 4646</a></p>
   </section>
 
   <footer class="card foot">
     <div class="fcols">
       <div class="col brand">
         <img src="assets/logo_violet.png" alt="Lemon Talent">
-        <p style="margin:12px 0 0;color:var(--ink-2);max-width:320px;line-height:1.5" data-i18n="heroSub">Hacemos recruiting para startups, compañías digitales y equipos en transformación.</p>
+        <p class="tagline" data-i18n="heroSub">Hacemos recruiting para startups, compañías digitales y equipos en transformación.</p>
       </div>
       <div class="col"><span class="t" data-i18n="fExplore">Explorar</span><a href="#por-que" data-i18n="nav1">¿Por qué Lemon?</a><a href="#clientes" data-i18n="nav2">Clientes</a><a href="#equipo" data-i18n="nav3">Equipo</a><a href="#casos" data-i18n="casLabel">Casos reales</a></div>
-      <div class="col"><span class="t" data-i18n="nav4">Contacto</span><a href="mailto:paula.schattner@lemontalent.com.ar">paula.schattner@lemontalent.com.ar</a><a href="tel:+5491151524646">+54 9 11 5152 4646</a></div>
+      <div class="col"><span class="t" data-i18n="nav4">Contacto</span><a href="mailto:paula.schattner@lemontalent.com.ar">paula.schattner@lemontalent.com.ar</a><a href="https://wa.me/5491151524646" target="_blank" rel="noopener">+54 9 11 5152 4646</a></div>
       <div class="col"><span class="t" data-i18n="fConnect">Conectar</span><a href="https://www.linkedin.com/company/lemon-talent/">LinkedIn</a><a href="https://www.instagram.com/lemontalent.ar/">Instagram</a></div>
     </div>
     <div class="legal" data-i18n="legal">© Lemon Talent 2026. Todos los derechos reservados.</div>
@@ -564,21 +596,21 @@ var EN={
   heroCta:"Tell us who you’re hiring",heroLink:"See who we work with ↓",
   ann:"185 roles filled for Rappi since its launch in Argentina.",annLink:"Read client stories",
   cliLabel:"Trusted by",whatLabel:"What we do",
-  whatText:"Growth comes down to having the right people around you. That’s why we build great teams, the kind that go on to build great companies.",
+  whatText:"Success and growth depend, above all, on having the right people around you. That’s what we do: recruiting. We build great teams to create great projects.",
   howLabel:"How we work",howTitle:"We work as an extension of your team",
-  d1:"Brief & role scoping",d2:"Proactive sourcing",d3:"Lemon interviews",d4:"Curated shortlist",d5:"Post-hire follow-up",
-  s1t:"Partnerships, not transactions",s1p:"We stay with you through every stage of growth, not just for a single hire.",
-  s2t:"Great teams, great projects",s2p:"We get to know your business and culture before we start searching, so every candidate is a genuine fit.",
-  s3t:"Always the extra mile",s3p:"We get involved, we care like insiders, and we always go one step further.",
+  d1:"Understanding your business and the role",d2:"Active search",d3:"Interviews & assessment",d4:"Finalist presentation",d5:"Support through onboarding",
+  s1t:"Partnerships, not transactions",s1p:"We stay with each team over time, as the company grows.",
+  s2t:"Great teams, great projects",s2p:"We immerse ourselves in your business and culture before we start searching, so the people we bring in truly fit.",
+  s3t:"We always go the extra mile",s3p:"We get involved, we feel part of your team, and we always give a little more.",
   forTitle:"Talent, speed and commitment, all in one place",
-  c1k:"For companies",c1t:"Hiring for startups and fast-changing teams",c1p:"We define the role with you, move fast, and introduce candidates who fit your culture at every stage of growth.",
-  c2k:"For candidates",c2t:"Your next challenge at a company on the rise",c2p:"Join our network and be the first to hear about roles that match your profile.",
+  c1k:"For companies",c1t:"Hiring for startups and fast-changing teams",c1p:"We define the role with you, move fast, and stay with you through the whole hiring process, at every stage of the company. Even when you’re not sure yet what profile you need: we help you define it and find the people who fit where your business really is today.",
+  c2k:"For candidates",c2t:"Find the team where you’ll grow",c2p:"Join our network and be the first to hear about roles that match your profile.",
   arTitle:"Hiring across every part of the business",arLink:"Tell us who you need",
   a1:"Sales",a2:"Marketing & Growth",a3:"Design & Creative",a3t1:"Graphic Design",a3t2:"Creative Writing",a4:"Finance & Admin",a4t3:"Treasury",a4t4:"FP&A",a5:"Operations & Supply Chain",a5t2:"Logistics",a5t3:"Procurement",a6:"Tech & Data",a7:"People & Customer",a8:"Leadership",
-  whyTitle:"Why Lemon",chip2:"Digital-first companies",chip3:"Teams going through change",
+  whyTitle:"Why Lemon",
   v1t:"Agility",v1p:"We move fast without cutting corners.",v2t:"Commitment",v2p:"We go all in. When others stop, we keep going.",
   v3t:"Versatility",v3p:"We’ve worked with startups from day one, and we adapt as fast as they change.",v4t:"Transparency",v4p:"Our interest is always genuine, which is why our relationships are honest and built to last.",
-  teamLabel:"Our team",teamTitle:"The people behind every search",
+  teamLabel:"Our team",teamTitle:"The team behind every search",
   statTitle:"Startup experience, long-term thinking",st1:"roles filled since 2019",st2:"companies have trusted Lemon",st3a:" in 10",st3:"clients come back to hire with us again",
   casLabel:"Client stories",casTitle:"What the teams we’ve built say about us",
   q1:"“Lemon has been with us since Rappi launched in Argentina. Together we filled 185 roles across corporate and business teams, positions that were key to hitting extremely aggressive growth targets in a very short time.”",
@@ -588,7 +620,7 @@ var EN={
   q5:"“Lemon has helped us build the team that shapes Calm and drives its growth. They understood our needs quickly, even early on, when we struggled to put into words the profiles we were looking for.”",
   q6:"“After opening offices across Latin America, we had to hire our sales team remotely. Lemon gave us support, flexibility and a quick grasp of our market that we didn’t find in larger, more established firms.”",
   ctaTitle:"Where ambitious founders meet exceptional talent.",
-  jobsLabel:"Open roles",jobsTitle:"Join the teams we’re building",jobsGeneral:"Share your profile",apTitle:"Apply",fName:"Full name",fPhone:"Phone",fCv:"CV (PDF, up to 5 MB)",fCvHint:"Optional if your LinkedIn is up to date.",fMsg:"Anything you’d like to tell us?",fConsent:"I agree that Lemon Talent may store my details for this and future roles. I can ask for them to be deleted at any time.",fSend:"Send application",okTitle:"Thank you",okText:"We’ve received your application. If your profile is a fit, someone from the Lemon team will be in touch.",okClose:"Close",
+  jobsLabel:"Open roles",jobsTitle:"Join the teams we’re building",jobsGeneral:"Share your profile",apTitle:"Apply",fRole:"Role you’re applying for",fName:"Full name",fPhone:"Phone",fCity:"City and country of residence",fCityPh:"e.g. Mexico City, Mexico",fCv:"CV (PDF, up to 5 MB)",fCvHint:"Optional if your LinkedIn is up to date.",fMsg:"Anything you’d like to tell us?",fConsent:"I agree that Lemon Talent may store my details for this and future roles. I can ask for them to be deleted at any time.",fSend:"Send application",okTitle:"Thank you",okText:"We’ve received your application. If your profile is a fit, someone from the Lemon team will be in touch.",okClose:"Close",
   fExplore:"Explore",fConnect:"Follow us",legal:"© Lemon Talent 2026. All rights reserved."
 };
 (function(){
@@ -629,14 +661,16 @@ var EN={
   var ES={};
   document.querySelectorAll('[data-i18n]').forEach(function(el){var k=el.getAttribute('data-i18n');if(!(k in ES))ES[k]=el.textContent;});
   document.querySelectorAll('[data-i18n-html]').forEach(function(el){ES[el.getAttribute('data-i18n-html')]=el.innerHTML;});
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){ES[el.getAttribute('data-i18n-ph')]=el.placeholder;});
   var lang='es';
   function setLang(l,first){
     lang=l; var D=l==='en'?EN:ES;
     document.documentElement.lang=l;
     document.querySelectorAll('[data-i18n]').forEach(function(el){var k=el.getAttribute('data-i18n');if(D[k]!=null)el.textContent=D[k];});
     document.querySelectorAll('[data-i18n-html]').forEach(function(el){var k=el.getAttribute('data-i18n-html');if(D[k]!=null)el.innerHTML=D[k];});
+    document.querySelectorAll('[data-i18n-ph]').forEach(function(el){var k=el.getAttribute('data-i18n-ph');if(D[k]!=null)el.placeholder=D[k];});
     document.title = l==='en' ? 'Lemon Talent — Recruiting for startups and digital-first companies' : 'Lemon Talent — Recruiting para startups y compañías digitales';
-    document.querySelectorAll('.lang button').forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-lang')===l?'true':'false');});
+    document.querySelectorAll('.lang-menu button').forEach(function(b){b.setAttribute('aria-checked',b.getAttribute('data-lang')===l?'true':'false');});
     wrapWords(h1); splitBig();
     if(!first){hero.classList.add('in');onScroll();}
     try{document.dispatchEvent(new Event('lt-lang'));}catch(e){}
@@ -645,7 +679,12 @@ var EN={
   var start='es';
   try{ if(location.hash==='#en') start='en'; else if(localStorage.getItem('lt-lang')==='en') start='en'; }catch(e){}
   setLang(start,true);
-  document.querySelectorAll('.lang button').forEach(function(b){b.addEventListener('click',function(){setLang(b.getAttribute('data-lang'));});});
+  var langBtn=document.getElementById('langBtn'), langMenu=document.getElementById('langMenu');
+  function langOpen(o){langMenu.hidden=!o;langBtn.setAttribute('aria-expanded',o?'true':'false');}
+  langBtn.addEventListener('click',function(e){e.stopPropagation();langOpen(langMenu.hidden);if(!langMenu.hidden){var c=langMenu.querySelector('[aria-checked="true"]');if(c)c.focus();}});
+  langMenu.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){setLang(b.getAttribute('data-lang'));langOpen(false);langBtn.focus();});});
+  document.addEventListener('click',function(e){if(!e.target.closest('#lang'))langOpen(false);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!langMenu.hidden){langOpen(false);langBtn.focus();}});
   requestAnimationFrame(function(){setTimeout(function(){hero.classList.add('in');},80);});
 
   // Reveal
@@ -706,16 +745,16 @@ var EN={
   var API = (window.LT_API_BASE || '');
   var T = {
     es:{apply:'Postularme',more:'Ver descripción',empty:'Ahora no tenemos búsquedas publicadas. Dejanos tu perfil y te avisamos cuando aparezca algo para vos.',
-        fail:'No pudimos cargar las búsquedas en este momento. Probá de nuevo en un rato o dejanos tu perfil.',general:'Perfil general',
+        fail:'No pudimos cargar las búsquedas en este momento. Probá de nuevo en un rato o dejanos tu perfil.',general:'Perfil general',pick:'Elegí una búsqueda',generalOpt:'Ninguna en particular (perfil general)',eBusq:'Elegí la búsqueda a la que aplicás.',eCity:'Contanos en qué ciudad y país vivís.',
         eName:'Completá tu nombre.',eMail:'Revisá el email.',eLi:'Pegá el link a tu perfil de LinkedIn.',eCv:'El CV tiene que ser un PDF de hasta 5 MB.',eOk:'Necesitamos tu consentimiento para guardar tus datos.',eSend:'No pudimos enviar la postulación. Probá de nuevo en un rato.',sending:'Enviando…'},
     en:{apply:'Apply',more:'See description',empty:'There are no open roles published right now. Leave us your profile and we’ll reach out when something fits.',
-        fail:'We couldn’t load the open roles right now. Try again later or leave us your profile.',general:'General application',
+        fail:'We couldn’t load the open roles right now. Try again later or leave us your profile.',general:'General application',pick:'Choose a role',generalOpt:'None in particular (general profile)',eBusq:'Please choose the role you’re applying for.',eCity:'Please tell us your city and country.',
         eName:'Please enter your name.',eMail:'Please check your email.',eLi:'Please paste your LinkedIn profile link.',eCv:'Your CV must be a PDF up to 5 MB.',eOk:'We need your consent to store your details.',eSend:'We couldn’t send your application. Please try again later.',sending:'Sending…'}
   };
   function L(){ return T[document.documentElement.lang==='en'?'en':'es']; }
   var box=document.getElementById('jobs'), dlg=document.getElementById('applyDlg'), form=document.getElementById('applyForm'),
       ok=document.getElementById('applyOk'), err=document.getElementById('apErr'), roleEl=document.getElementById('apRole'),
-      busq=document.getElementById('apBusq'), send=document.getElementById('apSend');
+      sel=document.getElementById('apSelect'), send=document.getElementById('apSend');
   var data=null, failed=false;
 
   function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
@@ -758,8 +797,21 @@ var EN={
       .catch(function(){failed=true;render();});
   }
 
+  function fillSelect(){
+    var t=L(); sel.innerHTML='';
+    var ph=el('option',null,t.pick); ph.value=''; ph.disabled=true; sel.appendChild(ph);
+    (data||[]).forEach(function(j){var o=el('option',null,j.puesto+(j.empresa?' · '+j.empresa:'')); o.value=j.id; sel.appendChild(o);});
+    var g=el('option',null,t.generalOpt); g.value='general'; sel.appendChild(g);
+  }
+  function syncRole(){
+    var o=sel.options[sel.selectedIndex];
+    roleEl.textContent = !sel.value ? '' : (sel.value==='general' ? L().general : o.textContent);
+  }
+  sel.addEventListener('change',syncRole);
   function open(id,role){
-    form.reset(); err.textContent=''; busq.value=id||''; roleEl.textContent=role||L().general;
+    form.reset(); err.textContent=''; fillSelect();
+    sel.value = id ? id : (id==='' ? 'general' : ''); if(sel.selectedIndex<0) sel.value='';
+    syncRole();
     form.hidden=false; ok.hidden=true; send.disabled=false;
     if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
     setTimeout(function(){var f=form.querySelector('input[name=nombre]'); if(f)f.focus();},50);
@@ -774,12 +826,14 @@ var EN={
 
   form.addEventListener('submit',function(e){
     e.preventDefault(); var t=L(), f=form.elements; err.textContent='';
+    if(!sel.value) return err.textContent=t.eBusq;
     if(!f.nombre.value.trim()) return err.textContent=t.eName;
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.value.trim())) return err.textContent=t.eMail;
     if(!/linkedin\.com\//i.test(f.linkedin.value)) return err.textContent=t.eLi;
+    if(!f.ubicacion.value.trim()) return err.textContent=t.eCity;
     var cv=f.cv.files[0]; if(cv && (cv.size>5*1024*1024 || !/pdf$/i.test(cv.type||cv.name))) return err.textContent=t.eCv;
     if(!f.acepta.checked) return err.textContent=t.eOk;
-    var payload={busquedaId:f.busquedaId.value,nombre:f.nombre.value.trim(),email:f.email.value.trim(),telefono:f.telefono.value.trim(),
+    var payload={busquedaId:sel.value==='general'?'':sel.value,ubicacion:f.ubicacion.value.trim(),nombre:f.nombre.value.trim(),email:f.email.value.trim(),telefono:f.telefono.value.trim(),
       linkedin:f.linkedin.value.trim(),mensaje:f.mensaje.value.trim(),acepta:true,web:f.web.value,idioma:document.documentElement.lang||'es'};
     send.disabled=true; var lbl=send.firstChild.textContent; send.firstChild.textContent=t.sending;
     var leerCv=cv?new Promise(function(ok,ko){var rd=new FileReader();rd.onload=function(){ok({nombre:cv.name,base64:String(rd.result).split(',')[1]});};rd.onerror=ko;rd.readAsDataURL(cv);}):Promise.resolve(null);
